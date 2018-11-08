@@ -1,0 +1,30 @@
+[
+{
+"id"      : "kapamilya_name",
+"type"    : "text"          ,
+"label"   : "Kapamilya Name",
+"default" : ""              ,
+"secure"  : "true"
+},
+{
+"id"      : "password"    ,
+"type"    : "text"        ,
+"option"  : "hidden"      ,
+"label"   : "TFC Password",
+"default" : ""            ,
+"secure"  : "true"
+},
+{
+"id"      : "debug_level" ,
+"type"    : "text"        ,
+"label"   : "Debug Level" ,
+"default" : "0"
+},
+{
+"id"      : "cache_time"     ,
+"type"    : "text"           ,
+"label"   : "Cache Time (h)" ,
+"default" : "3"
+}
+]
+

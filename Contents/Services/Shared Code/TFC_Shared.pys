@@ -1,0 +1,324 @@
+import urllib
+
+# General
+USER_AGENT = 'Mozilla/5.0 (iPad: CPU OS 10_0 like Mac OS X; en-us) AppleWebKit/602.1.38 (KHTML, like Gecko) Version/10.0 Mobile/14A300 Safari/602.1'
+
+HTTP.Headers['User-Agent'] = USER_AGENT
+
+# TFC URLs
+BASE_URL    = 'https://tfc.tv'
+URL_LOGIN   = 'https://tfc.tv/user/login?returnUrl=%2F'
+URL_LOGOUT  = 'https://tfc.tv/logout'
+
+
+COOKIES = ''
+GLOBAL_AUTH_INFO = {}
+
+try:
+    DEBUG_LEVEL = int(Prefs['debug_level'])
+except:
+    DEBUG_LEVEL = 3
+        
+try:
+    CACHE_TIME = int(Prefs['cache_time']) * CACHE_1HOUR
+except:
+    CACHE_TIME = 0
+
+
+
+####################################################################################################
+def Logout():
+
+    try:
+
+        # Need to logout
+        Log.Info(DBG( "Logging out..." ))
+        
+        html = GetHtmlFromUrl( URL_LOGOUT, cacheTime = 0 )
+
+    except:
+        Log.Error(DBG( "Failed to log out!" ))
+        raise Ex.MediaNotAvailable
+
+
+####################################################################################################
+def DBG(message):
+    
+    return "## TFCTV LOG ## %s ##" % str(message)
+
+    
+    
+    
+####################################################################################################
+
+
+
+def DataFromUrl( url, headers = {}, params = None, cacheTime = None, method = 'GET' ):
+    
+    if method == 'POST':
+        #Log.Debug( "#### DataFromUrl_POST  ####" )
+        if params:
+            params = JSON.StringFromObject(params)
+        #Log.Debug( "#### params = '%s'  ####" % params )
+        response = HTTP.Request( url = url, headers = headers, data = params, method = 'POST', immediate = True )
+    else:
+        #Log.Debug( "#### DataFromUrl_GET  ####" )
+        if params:
+            query = urllib.urlencode(params)
+            url = "%s?%s" % ( url, query )
+        #Log.Debug( "#### url = '%s'  ####" % url )
+        #response = HTTP.Request( url = url, headers = headers, method = 'GET' )
+        response = HTTP.Request( url = url, headers = headers, immediate = True )
+
+    Log.Debug( "### RESPONSE HEADERS = '%s' ###" % response.headers     )    
+    Log.Debug( "#### HTTP.CookiesForURL(%s) =\n'%s'\n####" % (url,HTTP.CookiesForURL( url )) )
+    Log.Debug("\n\n*****\n%s\n\n*****\n\n" % response.content[:128] )
+
+    return response.content
+    
+#####################################################################################################
+    
+def JsonFromUrl_GET( url, headers = {}, params = None, cacheTime = None ):
+    #Log.Debug( "#### JsonFromUrl_GET  ####" )
+    #if params: Log.Debug( "#### params = '%s'  ####" % params )
+    headers.update( { 'Accept':'application/json, text/plain, */*','Content-type':'application/json'} )
+    return ( JSON.ObjectFromString( DataFromUrl( url, headers = headers, params = params, cacheTime = cacheTime, method = 'GET' ) ) )
+    
+def JsonFromUrl_POST( url, headers = {}, params = None, cacheTime = None ):
+    #Log.Debug( "#### JsonFromUrl_POST  ####" )
+    #if params: Log.Debug( "#### params = '%s'  ####" % params )
+    headers.update( { 'Accept':'application/json, text/plain, */*','Content-type':'application/json'} )
+    return ( JSON.ObjectFromString( DataFromUrl( url, headers = headers, params = params, cacheTime = cacheTime, method = 'POST' ) ) )
+
+
+def HtmlFromUrl_GET( url, headers = {}, params = None, cacheTime = None ):
+    #Log.Debug( "#### HtmlFromUrl_GET  ####" )
+    #if params: Log.Debug( "#### params = '%s'  ####" % params )
+    return DataFromUrl( url, headers = headers, params = params, cacheTime = cacheTime, method = 'GET' )
+
+def HtmlFromUrl_POST( url, headers = {}, params = None, cacheTime = None ):
+    #Log.Debug( "#### HtmlFromUrl_POST  ####" )
+    #if params: Log.Debug( "#### params = '%s'  ####" % params )
+    return DataFromUrl( url, headers = headers, params = params, cacheTime = cacheTime, method = 'POST' )
+
+#####################################################################################################
+
+def Nonce():
+    return ( (Datetime.Now() - Datetime.FromTimestamp(0)).total_seconds() )
+
+def CookieStringToDict( url ):
+    cookie_dict = {}
+    for cookie in HTTP.CookiesForURL( url ).split():
+        (key,value) = cookie.strip(';').split('=',1)
+        cookie_dict[key.strip()] = value.strip()
+    return cookie_dict
+
+
+def CurrentSessionIsValid():
+
+    global GLOBAL_AUTH_INFO
+    
+    Log.Info( "#### CHECK SESSION INFO ####" )         
+    
+    #if not Dict:
+    #    Log.Info( "#### Dict not existing ####" ) 
+    #    Dict.Reset()
+    #    Log.Info( "#### Dict was reset ####" ) 
+
+    if not 'UID' in GLOBAL_AUTH_INFO:
+        Log.Info( "#### 'UID' not in AUTH info ####" )  
+        return False       
+    
+    try:
+        # Authenticate at TFC.tv
+        TFC_AUTHENTICATE_URL      = 'https://tfc.tv/sso/authenticate'    
+        TFC_AUTHENTICATE_HEADERS  =  {
+            'Referer' : 'https://tfc.tv/'
+        }
+        TFC_AUTHENTICATE_PARAMS = {
+            'u' : GLOBAL_AUTH_INFO[ 'UID'               ],
+            's' : GLOBAL_AUTH_INFO[ 'UIDSignature'      ], 
+            't' : GLOBAL_AUTH_INFO[ 'signatureTimestamp'],
+            'returnUrl' : '/'
+        }
+        html = HtmlFromUrl_GET( TFC_AUTHENTICATE_URL, headers = TFC_AUTHENTICATE_HEADERS, params = TFC_AUTHENTICATE_PARAMS, cacheTime = 0 )
+        
+        if "TFC - Error" not in html:
+            check_session_json = JsonFromUrl_GET( 'https://tfc.tv/sso/checksession', headers = TFC_AUTHENTICATE_HEADERS, params = TFC_AUTHENTICATE_PARAMS, cacheTime = 0 )
+            #Log.Debug( "#### CHECK SESSION INFO JSON = %s ####" % JSON.StringFromObject(check_session_json) )
+            if check_session_json['StatusCode'] == 0:
+                Log.Debug( "#### CHECK SESSION INFO OK! ####" )
+                return True
+                
+    except:
+        Log.Info( "#### CHECK SESSION INFO FAILED! ####" )
+        return False
+   
+   
+#####################################################################################################
+def Login():    
+    
+    global COOKIES
+    global GLOBAL_AUTH_INFO
+
+    if CurrentSessionIsValid():
+        Log.Info( "Already logged in!" ) 
+        return COOKIES
+      
+    try: 
+    
+        COOKIES = ''
+        
+        # Log.Info( "####   Get Kapamilya login details ####" )
+        try:
+            loginID  = Prefs[ 'kapamilya_name' ]
+            password = Prefs[ 'password'       ]
+        except:
+            Log.Error( "#### KAPAMILYA LOGIN JSON FAILED! ####" )
+            raise Ex.MediaNotAvailable   
+         
+        Log.Info( "####   Connect to AUTHORIZE page to get initial cookies ####" )
+        AUTHORIZE_URL    = 'https://kapamilya-accounts.abs-cbn.com/connect/authorize'
+        AUTHORIZE_PARAMS = {
+            'client_id'     : 'tfconline'                    ,
+            'redirect_uri'  : 'https://tfc.tv/callback'      ,
+            'response_type' : 'id_token token'               ,
+            'scope'         : 'openid profile offline_access',
+            'nonce'         : Nonce()
+        }
+        html = HtmlFromUrl_GET( AUTHORIZE_URL, params = AUTHORIZE_PARAMS, cacheTime = 0 )
+
+        if DEBUG_LEVEL > 4: Log.Debug(DBG( "cookies = %s" % HTTP.CookiesForURL( AUTHORIZE_URL ) ))
+
+        Log.Info( "LOGIN with our credentials" )
+        KAPAMILYA_LOGIN_URL  = 'https://kapamilya-accounts.abs-cbn.com/api/spa/login'
+        KAPAMILYA_LOGIN_HEADERS = {
+            'Accept'          : 'application/json, text/plain, */*',
+            'Referer'         : 'https://kapamilya-accounts.abs-cbn.com/signin',
+            'Content-Type'    : 'application/json',
+            'Host'            : 'kapamilya-accounts.abs-cbn.com',
+            'Accept-Language' : 'en-US,en;q=0.5',
+            'Accept-Encoding' : 'gzip, deflate, br',
+            'Connection'      : 'keep-alive'
+        }
+        KAPAMILYA_LOGIN_DATA = { 
+            'loginID'  : loginID  ,
+            'password' : password
+        }        
+        kapamilya_login_json = JsonFromUrl_POST( KAPAMILYA_LOGIN_URL, headers = KAPAMILYA_LOGIN_HEADERS, params = KAPAMILYA_LOGIN_DATA, cacheTime = 0 )
+        #Log.Debug( "\n#### KAPAMILYA LOGIN JSON = %s ####" % JSON.StringFromObject(kapamilya_login_json) )
+        if not 'errorCode' in kapamilya_login_json or kapamilya_login_json['errorCode'] != 0:
+            Log.Error( "#### KAPAMILYA LOGIN JSON FAILED! ####" )
+            raise Ex.MediaNotAvailable 
+
+        if DEBUG_LEVEL > 4: Log.Debug(DBG( "cookies = %s" % HTTP.CookiesForURL( KAPAMILYA_LOGIN_URL ) ))
+
+    
+        dataCenter = 'us1'
+        if dataCenter:
+            dataCenter = '.' + dataCenter
+
+        #Log.Info( "#### Get 'app_apikey' cookies from KAPAMILYA LOGIN ####" )
+        try:
+            app_apikey_cookie = CookieStringToDict( KAPAMILYA_LOGIN_URL )['app_apikey']
+            #Log.Info( "app_apikey_cookie = '%s'" % (app_apikey_cookie) )
+        except:
+            Log.Error( "#### app_apikey cookie NOT FOUND! ####" )
+            raise Ex.MediaNotAvailable 
+
+    
+        GIGYA_ACCOUNT_URL     = 'https://accounts%s.gigya.com/accounts.webSdkBootstrap' % dataCenter
+        GIGYA_ACCOUNT_HEADERS = {
+            #'Referer' : GIGYA_URL
+        }
+        GIGYA_ACCOUNT_PARAMS  = {
+            'ApiKey'  : app_apikey_cookie, 
+            'pageURL' : 'https://kapamilya-accounts.abs-cbn.com/signin', 
+            'format'  : 'json', 
+            'context' : 'R' + str(Util.RandomInt(10000, 99999)**2)
+        }
+        gigyaAccountJson = JsonFromUrl_GET( GIGYA_ACCOUNT_URL, headers = GIGYA_ACCOUNT_HEADERS, params = GIGYA_ACCOUNT_PARAMS, cacheTime = 0  )
+        #Log.Debug( "### ACCOUNT JSON: '%s' ###" % JSON.StringFromObject(gigyaAccountJson) )            
+        if not 'errorCode' in gigyaAccountJson or gigyaAccountJson['errorCode'] != 0:
+            Log.Error( "#### ACCOUNT JSON FAILED! ####" )
+            raise Ex.MediaNotAvailable 
+         
+             
+        #Log.Info( "#### Get LOGIN TOKEN from GIGYA LOGIN ####" )
+        # Extract the gac_3_..... cookie value from KAPAMILYA login
+        for (key,value) in CookieStringToDict( KAPAMILYA_LOGIN_URL ).items():
+            if key.startswith('gac_3_'):
+                gac_3_cookie_value = value
+                #Log.Debug( "### FOUND gac_3_ = { '%s' : '%s' } ###" % (key,gac_3_cookie_value) )
+        if not gac_3_cookie_value:
+            Log.Error( "#### gac_3_cookie_value NOT FOUND! ####" )
+            raise Ex.MediaNotAvailable 
+       
+        # Get data from GIGYA login
+        GIGYA_LOGIN_URL     = 'https://socialize%s.gigya.com/socialize.notifyLogin' % dataCenter
+        GIGYA_LOGIN_HEADERS = {
+            'Referer' : 'https://cdns%s.gigya.com/gs/webSdk/Api.aspx' % dataCenter
+        }
+        GIGYA_LOGIN_PARAMS  = {
+            'sessionExpiration' : -2,
+            'authCode' : gac_3_cookie_value,
+            'APIKey': app_apikey_cookie,
+            #'sdk' : 'js_' + gigyaVersion,
+            'authMode' : 'cookie',
+            'pageURL' : 'https://kapamilya-accounts.abs-cbn.com/welcome',
+            'format' : 'json',
+            'context' : 'R' + str(Util.RandomInt(10000, 99999)**2)
+        }
+        gigyaLoginJson = JsonFromUrl_GET( GIGYA_LOGIN_URL, headers = GIGYA_LOGIN_HEADERS, params = GIGYA_LOGIN_PARAMS, cacheTime = 0 )
+        #Log.Debug( "#### GIGYA LOGIN JSON = %s ####" % JSON.StringFromObject(gigyaLoginJson) )
+        if not 'errorCode' in gigyaLoginJson or gigyaLoginJson['errorCode'] != 0:
+            Log.Error( "#### GIGYA LOGIN JSON FAILED! ####" )
+            raise Ex.MediaNotAvailable 
+        if not 'login_token' in gigyaLoginJson:
+            Log.Error( "#### GIGYA LOGIN TOKEN NOT FOUND! ####" )
+            raise Ex.MediaNotAvailable 
+                      
+        # Retrieve UID, UIDSignature and signatureTimestamp from GIGYA account
+        #Log.Info( "#### Get ACCOUNT INFO from GIGYA ####" )
+        GIGYA_ACCOUNT_INFO_URL      = 'https://accounts.us1.gigya.com/accounts.getAccountInfo'    
+        GIGYA_ACCOUNT_INFO_HEADERS  =  {
+            'Referer' : 'https://cdns%s.gigya.com/gs/webSdk/Api.aspx' % dataCenter
+        }
+        GIGYA_ACCOUNT_INFO_PARAMS = {
+            'include'     : 'profile,',
+            'APIKey'      : app_apikey_cookie,
+            #'sdk'         : 'js_' + gigyaVersion,
+            'login_token' : gigyaLoginJson['login_token'] ,
+            'authMode'    : 'cookie',
+            'pageURL'     : 'https://kapamilya-accounts.abs-cbn.com/checksession',
+            'format'      : 'json',
+            'context'     : 'R' + str(Util.RandomInt(10000, 99999)**2)
+        }
+        gigyaAccountInfoJson = JsonFromUrl_GET( GIGYA_ACCOUNT_INFO_URL, headers = GIGYA_ACCOUNT_INFO_HEADERS, params = GIGYA_ACCOUNT_INFO_PARAMS, cacheTime = 0 )
+        #Log.Debug( "#### GIGYA ACCOUNT INFO JSON = %s ####" % JSON.StringFromObject(gigyaAccountInfoJson) )
+        if not 'errorCode' in gigyaAccountInfoJson or gigyaAccountInfoJson['errorCode'] != 0:
+            Log.Error( "#### GIGYA ACCOUNT INFO JSON FAILED! ####" )
+            raise Ex.MediaNotAvailable 
+
+        Log.Info( "UID                = '%s'" % (str(gigyaAccountInfoJson[ 'UID'                ])) )
+        Log.Info( "UIDSignature       = '%s'" % (str(gigyaAccountInfoJson[ 'UIDSignature'       ])) )
+        Log.Info( "signatureTimestamp = '%s'" % (str(gigyaAccountInfoJson[ 'signatureTimestamp' ])) )
+        
+        # Update the auth info
+        GLOBAL_AUTH_INFO[ 'UID'                ] = str( gigyaAccountInfoJson[ 'UID'                ] )
+        GLOBAL_AUTH_INFO[ 'UIDSignature'       ] = str( gigyaAccountInfoJson[ 'UIDSignature'       ] )
+        GLOBAL_AUTH_INFO[ 'signatureTimestamp' ] = str( gigyaAccountInfoJson[ 'signatureTimestamp' ] )
+
+        if CurrentSessionIsValid():
+            Log.Info( "Successfully logged in." ) 
+            COOKIES = HTTP.CookiesForURL( KAPAMILYA_LOGIN_URL )
+            return COOKIES
+        
+    except:
+        COOKIES = ''
+        Log.Error(DBG( "Failed to log in!" ))
+        
+    raise Ex.MediaNotAvailable    
+    
+
+## EOF ##
