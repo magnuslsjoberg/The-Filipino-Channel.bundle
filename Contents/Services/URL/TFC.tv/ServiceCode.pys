@@ -34,9 +34,6 @@ RE_INFO_MOVIE   = Regex(r"(?P<date>[1-2][0-9][0-9][0-9])\s+\|\s+(?P<hours>[0-9])
 # style="background-image:url(https://timg.tfc.tv/xcms/categoryimages/4046/I-AMERICA-HERO-WEB.jpg);">
 RE_MOVIE_BANNER_PATH = Regex(r'background-image:url\((?P<banner_path>[^"]+)\);')
 
-# Regex to extract fingerprint id from cookies
-RE_COOKIE_FID = Regex( r"; cc_fingerprintid=(?P<fid>[^;]+);" )
-
 # Regex for parsing m3u8 info
 RE_M3U8 = Regex( r"#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=(?P<bandwidth>\d+),RESOLUTION=(?P<width>\d+)x(?P<height>\d+),CODECS=\"(?P<codecs>[^\"]+\")\n(?P<url>https?://\S+)", Regex.MULTILINE )
 
@@ -229,7 +226,7 @@ def PlayVideo( url, **kwargs ):
         if DEBUG_LEVEL > 1: Log.Debug(DBG( "playlist_url: %s" % playlist_url ))
 
         # Read the playlist to get the akamai cookies!
-        x = HTTP.Request( playlist_url, cacheTime = 0 )
+        x = HTTP.Request( playlist_url, cacheTime = 0, immediate = True )
         # For some extremely weird reason the content needs to be accessed, otherwise the stream will not play!!!
         xx = x.content
         if DEBUG_LEVEL > 2: Log.Debug(DBG( "playlist: %s" % x.content ))

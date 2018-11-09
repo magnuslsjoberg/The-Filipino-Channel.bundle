@@ -113,6 +113,12 @@ def CookieStringToDict( url ):
         cookie_dict[key.strip()] = value.strip()
     return cookie_dict
 
+def CookieDictToString( cookie_dict ):
+    cookie_string = ""
+    for (key,value) in cookie_dict.items():
+        cookie_string = "%s%s=%s; " % (cookie_string,key,value)
+    return cookie_string
+
 
 def CurrentSessionIsValid():
 
@@ -187,8 +193,8 @@ def Login():
             'nonce'         : Nonce()
         }
         html = HtmlFromUrl_GET( AUTHORIZE_URL, params = AUTHORIZE_PARAMS, cacheTime = 0 )
-
-        if DEBUG_LEVEL > 4: Log.Debug(DBG( "cookies = %s" % HTTP.CookiesForURL( AUTHORIZE_URL ) ))
+        cookie_dict = CookieStringToDict( AUTHORIZE_URL )
+        if DEBUG_LEVEL > 4: Log.Debug(DBG( "cookies = %s" % cookie_dict ))
 
         Log.Info( "LOGIN with our credentials" )
         KAPAMILYA_LOGIN_URL  = 'https://kapamilya-accounts.abs-cbn.com/api/spa/login'
@@ -211,22 +217,52 @@ def Login():
             Log.Error( "#### KAPAMILYA LOGIN JSON FAILED! ####" )
             raise Ex.MediaNotAvailable 
 
-        if DEBUG_LEVEL > 4: Log.Debug(DBG( "cookies = %s" % HTTP.CookiesForURL( KAPAMILYA_LOGIN_URL ) ))
-
-    
-        dataCenter = 'us1'
-        if dataCenter:
-            dataCenter = '.' + dataCenter
+        cookie_dict.update( CookieStringToDict( KAPAMILYA_LOGIN_URL ) )
+        if DEBUG_LEVEL > 4: Log.Debug(DBG( "cookies = %s" % cookie_dict ))
 
         #Log.Info( "#### Get 'app_apikey' cookies from KAPAMILYA LOGIN ####" )
         try:
-            app_apikey_cookie = CookieStringToDict( KAPAMILYA_LOGIN_URL )['app_apikey']
-            #Log.Info( "app_apikey_cookie = '%s'" % (app_apikey_cookie) )
+            app_apikey_cookie = cookie_dict['app_apikey']
+            Log.Info( "app_apikey_cookie = '%s'" % (app_apikey_cookie) )
         except:
             Log.Error( "#### app_apikey cookie NOT FOUND! ####" )
             raise Ex.MediaNotAvailable 
+            
+        Log.Info( "#### Extract info from GIGYA JavaScript ####" )
+        GIGYA_URL    = 'https://cdns.gigya.com/js/gigya.js'
+        GIGYA_PARAMS = { 
+            'apikey' : app_apikey_cookie, 
+            '_'      : Nonce()
+        }
+        gigyaHtml = HtmlFromUrl_GET( GIGYA_URL, params = GIGYA_PARAMS, cacheTime = 0 )
+        #Log.Info(gigyaHtml)
+        try:
+            gigyaVersion = re.compile('gigya.build={.*?"version":?"([\d.]+)",').search(gigyaHtml).group(1)
+        except:
+            gigyaVersion = ""
+        try:
+            gigyaBuild = re.compile('gigya.build={.*?"number":([\d.]+),').search(gigyaHtml).group(1)
+        except:
+            gigyaBuild = ""
+        try:
+            defaultApiDomain = re.compile('gigya.defaultApiDomain=\'([a-zA-Z.]+)\';').search(gigyaHtml).group(1)
+        except:
+            defaultApiDomain = ""
+        try:
+            dataCenter = re.compile('gigya.dataCenter=\'([a-zA-Z0-9.]+)\';').search(gigyaHtml).group(1)
+        except:
+            dataCenter = ""
+        try:
+            ssoKey = re.compile('"ssoKey":"([a-zA-Z0-9_-]+)",').search(gigyaHtml).group(1)
+        except:
+            ssoKey = ""
+        Log.Info("### EXTRACTED gigyaVersion: %s, gigyaBuild: %s, defaultApiDomain: %s, dataCenter: %s, ssoKey: %s ###" % (gigyaVersion, gigyaBuild, defaultApiDomain, dataCenter, ssoKey) )
 
-    
+        cookie_dict['apiDomain_' + ssoKey] = dataCenter + '.' + defaultApiDomain
+            
+        if dataCenter:
+            dataCenter = '.' + dataCenter
+
         GIGYA_ACCOUNT_URL     = 'https://accounts%s.gigya.com/accounts.webSdkBootstrap' % dataCenter
         GIGYA_ACCOUNT_HEADERS = {
             #'Referer' : GIGYA_URL
@@ -243,7 +279,9 @@ def Login():
             Log.Error( "#### ACCOUNT JSON FAILED! ####" )
             raise Ex.MediaNotAvailable 
          
-             
+        cookie_dict.update( CookieStringToDict( GIGYA_ACCOUNT_URL ) )
+        if DEBUG_LEVEL > 4: Log.Debug(DBG( "cookies = %s" % cookie_dict ))
+
         #Log.Info( "#### Get LOGIN TOKEN from GIGYA LOGIN ####" )
         # Extract the gac_3_..... cookie value from KAPAMILYA login
         for (key,value) in CookieStringToDict( KAPAMILYA_LOGIN_URL ).items():
@@ -277,7 +315,10 @@ def Login():
         if not 'login_token' in gigyaLoginJson:
             Log.Error( "#### GIGYA LOGIN TOKEN NOT FOUND! ####" )
             raise Ex.MediaNotAvailable 
-                      
+
+        cookie_dict.update( CookieStringToDict( GIGYA_ACCOUNT_URL ) )
+        if DEBUG_LEVEL > 4: Log.Debug(DBG( "cookies = %s" % cookie_dict ))
+
         # Retrieve UID, UIDSignature and signatureTimestamp from GIGYA account
         #Log.Info( "#### Get ACCOUNT INFO from GIGYA ####" )
         GIGYA_ACCOUNT_INFO_URL      = 'https://accounts.us1.gigya.com/accounts.getAccountInfo'    
@@ -300,6 +341,14 @@ def Login():
             Log.Error( "#### GIGYA ACCOUNT INFO JSON FAILED! ####" )
             raise Ex.MediaNotAvailable 
 
+        cookie_dict.update( CookieStringToDict( GIGYA_ACCOUNT_INFO_URL ) )
+        if DEBUG_LEVEL > 4: Log.Debug(DBG( "cookies = %s" % cookie_dict ))
+        
+        # Construct cookies (from: https://github.com/cmik/cmik.xbmc/blob/master/plugin.video.tfctv/default.py )
+        cookie_dict[ 'glt_' + app_apikey_cookie ] = gigyaLoginJson['login_token']
+        cookie_dict[ 'glt_' + ssoKey            ] = gigyaLoginJson['login_token'] + '%7CUUID%3Dc105bc07c71b490881398f5cda1a1f2e'
+        cookie_dict[ 'cc_fingerprintid'         ] = Hash.MD5( Prefs['kapamilya_name'] + str(Util.RandomInt(0, 1000000)) )  
+
         Log.Info( "UID                = '%s'" % (str(gigyaAccountInfoJson[ 'UID'                ])) )
         Log.Info( "UIDSignature       = '%s'" % (str(gigyaAccountInfoJson[ 'UIDSignature'       ])) )
         Log.Info( "signatureTimestamp = '%s'" % (str(gigyaAccountInfoJson[ 'signatureTimestamp' ])) )
@@ -311,14 +360,13 @@ def Login():
 
         if CurrentSessionIsValid():
             Log.Info( "Successfully logged in." ) 
-            COOKIES = HTTP.CookiesForURL( KAPAMILYA_LOGIN_URL )
+            COOKIES = CookieDictToString( cookie_dict )
             return COOKIES
         
     except:
         COOKIES = ''
         Log.Error(DBG( "Failed to log in!" ))
         
-    raise Ex.MediaNotAvailable    
-    
+    raise Ex.MediaNotAuthorized    
 
 ## EOF ##
