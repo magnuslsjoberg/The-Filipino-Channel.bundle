@@ -11,6 +11,13 @@ URL_LOGIN   = 'https://tfc.tv/user/login?returnUrl=%2F'
 URL_LOGOUT  = 'https://tfc.tv/logout'
 
 
+RE_GIGYA_VERSION     = Regex( 'gigya.build={.*?"version":?"([\d.]+)",'   )
+RE_GIGYA_BUILD       = Regex( 'gigya.build={.*?"number":([\d.]+),'       )
+RE_GIGYA_API_DOMAIN  = Regex( 'gigya.defaultApiDomain=\'([a-zA-Z.]+)\';' )
+RE_GIGYA_DATA_CENTER = Regex( 'gigya.dataCenter=\'([a-zA-Z0-9.]+)\';'    )
+RE_GIGYA_SSO_KEY     = Regex( '"ssoKey":"([a-zA-Z0-9_-]+)",'             )
+            
+
 COOKIES = ''
 GLOBAL_AUTH_INFO = {}
 
@@ -34,7 +41,7 @@ def Logout():
         # Need to logout
         Log.Info(DBG( "Logging out..." ))
         
-        html = GetHtmlFromUrl( URL_LOGOUT, cacheTime = 0 )
+        html = GetHtmlFromUrl( URL_LOGOUT )
 
     except:
         Log.Error(DBG( "Failed to log out!" ))
@@ -53,7 +60,7 @@ def DBG(message):
 
 
 
-def DataFromUrl( url, headers = {}, params = None, cacheTime = None, method = 'GET' ):
+def DataFromUrl( url, headers = {}, params = None, method = 'GET' ):
     
     if method == 'POST':
         #Log.Debug( "#### DataFromUrl_POST  ####" )
@@ -67,39 +74,37 @@ def DataFromUrl( url, headers = {}, params = None, cacheTime = None, method = 'G
             query = urllib.urlencode(params)
             url = "%s?%s" % ( url, query )
         #Log.Debug( "#### url = '%s'  ####" % url )
-        #response = HTTP.Request( url = url, headers = headers, method = 'GET' )
         response = HTTP.Request( url = url, headers = headers, immediate = True )
 
     Log.Debug( "### RESPONSE HEADERS = '%s' ###" % response.headers     )    
-    Log.Debug( "#### HTTP.CookiesForURL(%s) =\n'%s'\n####" % (url,HTTP.CookiesForURL( url )) )
     Log.Debug("\n\n*****\n%s\n\n*****\n\n" % response.content[:128] )
 
     return response.content
     
 #####################################################################################################
     
-def JsonFromUrl_GET( url, headers = {}, params = None, cacheTime = None ):
+def JsonFromUrl_GET( url, headers = {}, params = None ):
     #Log.Debug( "#### JsonFromUrl_GET  ####" )
     #if params: Log.Debug( "#### params = '%s'  ####" % params )
     headers.update( { 'Accept':'application/json, text/plain, */*','Content-type':'application/json'} )
-    return ( JSON.ObjectFromString( DataFromUrl( url, headers = headers, params = params, cacheTime = cacheTime, method = 'GET' ) ) )
+    return ( JSON.ObjectFromString( DataFromUrl( url, headers = headers, params = params, method = 'GET' ) ) )
     
-def JsonFromUrl_POST( url, headers = {}, params = None, cacheTime = None ):
+def JsonFromUrl_POST( url, headers = {}, params = None ):
     #Log.Debug( "#### JsonFromUrl_POST  ####" )
     #if params: Log.Debug( "#### params = '%s'  ####" % params )
     headers.update( { 'Accept':'application/json, text/plain, */*','Content-type':'application/json'} )
-    return ( JSON.ObjectFromString( DataFromUrl( url, headers = headers, params = params, cacheTime = cacheTime, method = 'POST' ) ) )
+    return ( JSON.ObjectFromString( DataFromUrl( url, headers = headers, params = params, method = 'POST' ) ) )
 
 
-def HtmlFromUrl_GET( url, headers = {}, params = None, cacheTime = None ):
+def HtmlFromUrl_GET( url, headers = {}, params = None ):
     #Log.Debug( "#### HtmlFromUrl_GET  ####" )
     #if params: Log.Debug( "#### params = '%s'  ####" % params )
-    return DataFromUrl( url, headers = headers, params = params, cacheTime = cacheTime, method = 'GET' )
+    return DataFromUrl( url, headers = headers, params = params, method = 'GET' )
 
-def HtmlFromUrl_POST( url, headers = {}, params = None, cacheTime = None ):
+def HtmlFromUrl_POST( url, headers = {}, params = None ):
     #Log.Debug( "#### HtmlFromUrl_POST  ####" )
     #if params: Log.Debug( "#### params = '%s'  ####" % params )
-    return DataFromUrl( url, headers = headers, params = params, cacheTime = cacheTime, method = 'POST' )
+    return DataFromUrl( url, headers = headers, params = params, method = 'POST' )
 
 #####################################################################################################
 
@@ -147,10 +152,10 @@ def CurrentSessionIsValid():
             't' : GLOBAL_AUTH_INFO[ 'signatureTimestamp'],
             'returnUrl' : '/'
         }
-        html = HtmlFromUrl_GET( TFC_AUTHENTICATE_URL, headers = TFC_AUTHENTICATE_HEADERS, params = TFC_AUTHENTICATE_PARAMS, cacheTime = 0 )
+        html = HtmlFromUrl_GET( TFC_AUTHENTICATE_URL, headers = TFC_AUTHENTICATE_HEADERS, params = TFC_AUTHENTICATE_PARAMS )
         
         if "TFC - Error" not in html:
-            check_session_json = JsonFromUrl_GET( 'https://tfc.tv/sso/checksession', headers = TFC_AUTHENTICATE_HEADERS, params = TFC_AUTHENTICATE_PARAMS, cacheTime = 0 )
+            check_session_json = JsonFromUrl_GET( 'https://tfc.tv/sso/checksession', headers = TFC_AUTHENTICATE_HEADERS, params = TFC_AUTHENTICATE_PARAMS )
             #Log.Debug( "#### CHECK SESSION INFO JSON = %s ####" % JSON.StringFromObject(check_session_json) )
             if check_session_json['StatusCode'] == 0:
                 Log.Debug( "#### CHECK SESSION INFO OK! ####" )
@@ -192,7 +197,7 @@ def Login():
             'scope'         : 'openid profile offline_access',
             'nonce'         : Nonce()
         }
-        html = HtmlFromUrl_GET( AUTHORIZE_URL, params = AUTHORIZE_PARAMS, cacheTime = 0 )
+        html = HtmlFromUrl_GET( AUTHORIZE_URL, params = AUTHORIZE_PARAMS )
         cookie_dict = CookieStringToDict( AUTHORIZE_URL )
         if DEBUG_LEVEL > 4: Log.Debug(DBG( "cookies = %s" % cookie_dict ))
 
@@ -211,7 +216,7 @@ def Login():
             'loginID'  : loginID  ,
             'password' : password
         }        
-        kapamilya_login_json = JsonFromUrl_POST( KAPAMILYA_LOGIN_URL, headers = KAPAMILYA_LOGIN_HEADERS, params = KAPAMILYA_LOGIN_DATA, cacheTime = 0 )
+        kapamilya_login_json = JsonFromUrl_POST( KAPAMILYA_LOGIN_URL, headers = KAPAMILYA_LOGIN_HEADERS, params = KAPAMILYA_LOGIN_DATA )
         #Log.Debug( "\n#### KAPAMILYA LOGIN JSON = %s ####" % JSON.StringFromObject(kapamilya_login_json) )
         if not 'errorCode' in kapamilya_login_json or kapamilya_login_json['errorCode'] != 0:
             Log.Error( "#### KAPAMILYA LOGIN JSON FAILED! ####" )
@@ -234,26 +239,26 @@ def Login():
             'apikey' : app_apikey_cookie, 
             '_'      : Nonce()
         }
-        gigyaHtml = HtmlFromUrl_GET( GIGYA_URL, params = GIGYA_PARAMS, cacheTime = 0 )
+        gigyaHtml = HtmlFromUrl_GET( GIGYA_URL, params = GIGYA_PARAMS )
         #Log.Info(gigyaHtml)
         try:
-            gigyaVersion = re.compile('gigya.build={.*?"version":?"([\d.]+)",').search(gigyaHtml).group(1)
+            gigyaVersion = RE_GIGYA_VERSION.search(gigyaHtml).group(1)
         except:
             gigyaVersion = ""
         try:
-            gigyaBuild = re.compile('gigya.build={.*?"number":([\d.]+),').search(gigyaHtml).group(1)
+            gigyaBuild = RE_GIGYA_BUILD.search(gigyaHtml).group(1)
         except:
             gigyaBuild = ""
         try:
-            defaultApiDomain = re.compile('gigya.defaultApiDomain=\'([a-zA-Z.]+)\';').search(gigyaHtml).group(1)
+            defaultApiDomain = RE_GIGYA_API_DOMAIN.search(gigyaHtml).group(1)
         except:
             defaultApiDomain = ""
         try:
-            dataCenter = re.compile('gigya.dataCenter=\'([a-zA-Z0-9.]+)\';').search(gigyaHtml).group(1)
+            dataCenter = RE_GIGYA_DATA_CENTER.search(gigyaHtml).group(1)
         except:
             dataCenter = ""
         try:
-            ssoKey = re.compile('"ssoKey":"([a-zA-Z0-9_-]+)",').search(gigyaHtml).group(1)
+            ssoKey = RE_GIGYA_SSO_KEY.search(gigyaHtml).group(1)
         except:
             ssoKey = ""
         Log.Info("### EXTRACTED gigyaVersion: %s, gigyaBuild: %s, defaultApiDomain: %s, dataCenter: %s, ssoKey: %s ###" % (gigyaVersion, gigyaBuild, defaultApiDomain, dataCenter, ssoKey) )
@@ -273,7 +278,7 @@ def Login():
             'format'  : 'json', 
             'context' : 'R' + str(Util.RandomInt(10000, 99999)**2)
         }
-        gigyaAccountJson = JsonFromUrl_GET( GIGYA_ACCOUNT_URL, headers = GIGYA_ACCOUNT_HEADERS, params = GIGYA_ACCOUNT_PARAMS, cacheTime = 0  )
+        gigyaAccountJson = JsonFromUrl_GET( GIGYA_ACCOUNT_URL, headers = GIGYA_ACCOUNT_HEADERS, params = GIGYA_ACCOUNT_PARAMS  )
         #Log.Debug( "### ACCOUNT JSON: '%s' ###" % JSON.StringFromObject(gigyaAccountJson) )            
         if not 'errorCode' in gigyaAccountJson or gigyaAccountJson['errorCode'] != 0:
             Log.Error( "#### ACCOUNT JSON FAILED! ####" )
@@ -307,7 +312,7 @@ def Login():
             'format' : 'json',
             'context' : 'R' + str(Util.RandomInt(10000, 99999)**2)
         }
-        gigyaLoginJson = JsonFromUrl_GET( GIGYA_LOGIN_URL, headers = GIGYA_LOGIN_HEADERS, params = GIGYA_LOGIN_PARAMS, cacheTime = 0 )
+        gigyaLoginJson = JsonFromUrl_GET( GIGYA_LOGIN_URL, headers = GIGYA_LOGIN_HEADERS, params = GIGYA_LOGIN_PARAMS )
         #Log.Debug( "#### GIGYA LOGIN JSON = %s ####" % JSON.StringFromObject(gigyaLoginJson) )
         if not 'errorCode' in gigyaLoginJson or gigyaLoginJson['errorCode'] != 0:
             Log.Error( "#### GIGYA LOGIN JSON FAILED! ####" )
@@ -335,7 +340,7 @@ def Login():
             'format'      : 'json',
             'context'     : 'R' + str(Util.RandomInt(10000, 99999)**2)
         }
-        gigyaAccountInfoJson = JsonFromUrl_GET( GIGYA_ACCOUNT_INFO_URL, headers = GIGYA_ACCOUNT_INFO_HEADERS, params = GIGYA_ACCOUNT_INFO_PARAMS, cacheTime = 0 )
+        gigyaAccountInfoJson = JsonFromUrl_GET( GIGYA_ACCOUNT_INFO_URL, headers = GIGYA_ACCOUNT_INFO_HEADERS, params = GIGYA_ACCOUNT_INFO_PARAMS )
         #Log.Debug( "#### GIGYA ACCOUNT INFO JSON = %s ####" % JSON.StringFromObject(gigyaAccountInfoJson) )
         if not 'errorCode' in gigyaAccountInfoJson or gigyaAccountInfoJson['errorCode'] != 0:
             Log.Error( "#### GIGYA ACCOUNT INFO JSON FAILED! ####" )
