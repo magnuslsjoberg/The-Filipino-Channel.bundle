@@ -42,6 +42,8 @@ def Logout():
         Log.Info(DBG( "Logging out..." ))
         
         html = GetHtmlFromUrl( URL_LOGOUT )
+        COOKIES = ''
+        HTTP.ClearCookies()
 
     except:
         Log.Error(DBG( "Failed to log out!" ))
@@ -179,7 +181,8 @@ def Login():
     try: 
     
         COOKIES = ''
-        
+        HTTP.ClearCookies()
+
         # Log.Info( "####   Get Kapamilya login details ####" )
         try:
             loginID  = Prefs[ 'kapamilya_name' ]
