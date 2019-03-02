@@ -1,13 +1,10 @@
 from TFC_Shared import *
 
+import json
+
 # General
 HTTP.Headers['Accept']          = '*/*'
 HTTP.Headers['Accept-Encoding'] = 'deflate, gzip'
-
-
-# TFC URLs
-URL_GET_VIDEO_DETAILS = BASE_URL + '/episode/details/{VIDEO_ID}'
-URL_GET_VIDEO         = BASE_URL + '/media/fetch'
 
 # TFC id URL patterns 
 RE_VIDEO_ID = Regex(r"(?P<url>https?://tfc.tv/(episode|live)/details/(?P<video_id>\d+))(/?.*)")
@@ -34,21 +31,8 @@ RE_INFO_MOVIE   = Regex(r"(?P<date>[1-2][0-9][0-9][0-9])\s+\|\s+(?P<hours>[0-9])
 # style="background-image:url(https://timg.tfc.tv/xcms/categoryimages/4046/I-AMERICA-HERO-WEB.jpg);">
 RE_MOVIE_BANNER_PATH = Regex(r'background-image:url\((?P<banner_path>[^"]+)\);')
 
-# Regex for parsing m3u8 info
-RE_M3U8 = Regex( r"#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=(?P<bandwidth>\d+),RESOLUTION=(?P<width>\d+)x(?P<height>\d+),CODECS=\"(?P<codecs>[^\"]+\")\n(?P<url>https?://\S+)", Regex.MULTILINE )
-
 # Regex for getting URL domain name
-RE_DOMAIN = Regex(r"https?://(?P<domain>[^\/]+)")
-
-
-JSON_HEADERS = dict()
-JSON_HEADERS['Accept']           = 'application/json, text/javascript, */*; q=0.01'
-JSON_HEADERS['X-Requested-With'] = 'XMLHttpRequest'
-JSON_HEADERS['Accept-Language']  = 'en-us'
-JSON_HEADERS['Accept-Encoding']  = 'gzip, deflate'
-JSON_HEADERS['Content-Type']     = 'application/x-www-form-urlencoded; charset=UTF-8'
-JSON_HEADERS['Host']             = 'tfc.tv'
-JSON_HEADERS['Origin']           = BASE_URL
+RE_DOMAIN = Regex(r"https?://(?P<domain>[^\/]+)")        
 
 
 ####################################################################################################
@@ -197,8 +181,8 @@ def MediaObjectsForURL(url):
 
     if DEBUG_LEVEL > 3: Log.Debug(DBG( "MediaObjectsForURL, url = '%s'" % (url) ))
     return [
-		MediaObject(
-			parts = [ PartObject(key=HTTPLiveStreamURL(Callback(PlayVideo, url=url)))],
+        MediaObject(
+            parts = [ PartObject(key=HTTPLiveStreamURL(Callback(PlayVideo, url=url)))],
             optimized_for_streaming = True,
             audio_channels          = 2,
             video_resolution        = 720
@@ -252,8 +236,8 @@ def GetPlaylistURL( url ):
         if DEBUG_LEVEL > 1: Log.Debug(DBG( "GetPlaylistURL, url = '%s'" % (url) ))
 
         # Login
-        HTTP.Headers['Cookie'] = Login()
-        if DEBUG_LEVEL > 0: Log.Debug(DBG( "HTTP.Headers['Cookie']: '%s'" % (HTTP.Headers['Cookie']) ))
+        cookies = Login()
+        if DEBUG_LEVEL > 0: Log.Debug(DBG( "cookies: '%s'" % (cookies) ))
         
         # Get episode/movie details
         source = HTTP.Request( url ).content
@@ -274,70 +258,24 @@ def GetPlaylistURL( url ):
             raise
 
         # Build up POST request to get media info
-        JSON_HEADERS['Referer']    = url
-        JSON_HEADERS['Cookie']     = HTTP.Headers['Cookie']
+        MEDIA_INFO_URL      = 'https://tfc.tv/media/fetch'    
+        MEDIA_INFO_HEADERS  =  {
+            'Cookie'  : cookies,
+            'Referer' : url
+        }
+        MEDIA_INFO_PARAMS = {
+            'eid' : episode_id,
+            'sid' : show_id, 
+            'pv'  : 'false'
+        }
+        mediaInfoJson = JsonFromUrl_POST( MEDIA_INFO_URL, headers = MEDIA_INFO_HEADERS, params = MEDIA_INFO_PARAMS )
 
-        values = {'eid': episode_id, 'sid': show_id, 'pv': 'False' }
-        if DEBUG_LEVEL > 2: Log.Debug(DBG( "values: %s" % (values) ))
+        if DEBUG_LEVEL > 2: Log.Debug(DBG( "JSON:  %s" % json.dumps( mediaInfoJson, indent = 4, sort_keys = True ) ))
 
-        json = JSON.ObjectFromURL( URL_GET_VIDEO, values = values, headers = JSON_HEADERS, cacheTime = 0 )
-
-        '''
-            {
-              "category": {
-                "poster": "https://img.tfc.tv/xcms/categoryimages/383/TFCtv-BandilaHEROWEB-1280x7205.jpg",
-                "dateaired": "Jul 03, 2006",
-                "type": "SHOW",    #   "LIVESTREAM"    "MOVIE"
-                "categoryid": "383",
-                "name": "Bandila"
-              },
-              "episode": {
-                "dateaired": "Jun 25, 2018",
-                "episodeid": "159351"
-              },
-              "asset": {
-                "assetid": "208690",
-                "type": "FULL"
-              },
-              "media": {
-                "poster": "https://img.tfc.tv/xcms/categoryimages/383/TFCtv-BandilaHEROWEB-1280x7205.jpg",
-                "source": [
-                  {
-                    "src": "https://o2-i.akamaihd.net/i/bandila/20180625/20180625-bandila-hd-,150000,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/master.m3u8?hdnea=ip=217.211.72.228~st=1529960905~exp=1529961205~acl=/i/bandila/20180625/20180625-bandila-hd-,150000,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/*~id=c5c8a385-d366-45b6-914a-5a5cc875298b~data=208690~hmac=30ea5f737512d16653f8f192378ae2a30b0d0ee0832c47d0a5c1e51949e343cd",
-                    "type": "application/x-mpegURL"
-                  }
-                ]
-              },
-              "mediainfo": {
-                "snippet": "None",
-                "live": "False",
-                "preview": "False",
-                "lastposition": "0.0",
-                "free": "False"
-              },
-              "user": {
-                "package": "PREMIUM",
-                "country": "SE",
-                "userid": "c5c8a385-d366-45b6-914a-5a5cc875298b",
-                "fingerprint": "8544ebf1754bac3666e648baade9f093",
-                "type": "REGISTERED",
-                "email": "uB+c1nfF/qf7qRm5+EQUxdaK6fiHUozyaARIFNTHs2I=",
-                "ipcountry": "SE"
-              },
-              "ad": {
-                "uri": "//tfc.tv/tfcads.xml?adUri=https%3a%2f%2fpubads.g.doubleclick.net%2fgampad%2fads%3fsz%3d640x480%26iu%3d%2f2744311%2fTFC_VideoPlayer%26impl%3ds%26gdfp_req%3d1%26env%3dvp%26output%3dvast%26unviewed_position_start%3d1%26url%3d%5boUri%5d%26description_url%3d%5bdescriptionUri%5d%26correlator%3d1529960920212%26cust_params%3d&midroll=&cp=ShowName%3dbandila&descUri=https%3a%2f%2ftfc.tv%2fepisode%2fdetails%2f159351%2fbandila-june-25-2018"
-              },
-              "StatusMessage": "OK",
-              "StatusCode": "1"
-    }
-        '''
-
-        if DEBUG_LEVEL > 2: Log.Debug(DBG( "JSON:  %s" % json ))
-
-        if json['StatusCode'] == 1 and json['StatusMessage'] == 'OK':
-            return json['media']['source'][0]['src']
+        if mediaInfoJson['StatusCode'] == 1 and mediaInfoJson['StatusMessage'] == 'OK':
+            return mediaInfoJson['media']['source'][0]['src']
         else:
-            Log.Error(DBG( "JSON ERROR %s:%s" % (json['StatusCode'],json['StatusMessage']) ))
+            Log.Error(DBG( "JSON ERROR %s:%s" % (mediaInfoJson['StatusCode'],mediaInfoJson['StatusMessage']) ))
 
 
     except:
