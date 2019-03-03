@@ -2,10 +2,6 @@ from TFC_Shared import *
 
 import json
 
-# General
-HTTP.Headers['Accept']          = '*/*'
-HTTP.Headers['Accept-Encoding'] = 'deflate, gzip'
-
 # TFC id URL patterns 
 RE_VIDEO_ID = Regex(r"(?P<url>https?://tfc.tv/(episode|live)/details/(?P<video_id>\d+))(/?.*)")
 
@@ -183,6 +179,7 @@ def MediaObjectsForURL(url):
     return [
         MediaObject(
             parts = [ PartObject(key=HTTPLiveStreamURL(Callback(PlayVideo, url=url)))],
+            protocol                = 'hls',
             optimized_for_streaming = True,
             audio_channels          = 2,
             video_resolution        = 720
@@ -209,18 +206,28 @@ def PlayVideo( url, **kwargs ):
 
         if DEBUG_LEVEL > 1: Log.Debug(DBG( "playlist_url: %s" % playlist_url ))
 
+        '''
         # Read the playlist to get the akamai cookies!
-        x = HTTP.Request( playlist_url, cacheTime = 0, immediate = True )
-        # For some extremely weird reason the content needs to be accessed, otherwise the stream will not play!!!
-        xx = x.content
-        if DEBUG_LEVEL > 2: Log.Debug(DBG( "playlist: %s" % x.content ))
+        playlist = HTTP.Request( playlist_url, cacheTime = 0, immediate = True )
+        if DEBUG_LEVEL > 2: Log.Debug(DBG( "playlist: %s" % playlist.content ))
 
         # Extract and update cookies
-        domain  = RE_DOMAIN.search(playlist_url).group('domain')
-        cookies = '%s; path=/; domain=%s;' % (HTTP.CookiesForURL(playlist_url), domain)
-        if DEBUG_LEVEL > 2: Log.Debug(DBG( "Final cookies for playlist_url: %s" % cookies ))
+        http_cookies = HTTP.CookiesForURL(playlist_url)
+        if DEBUG_LEVEL > 2: Log.Debug(DBG( "Final cookies for playlist_url: %s" % http_cookies ))
+        '''
+        
+        # Read the playlist to get the akamai cookies!
+        playlistHtml = HtmlFromUrl_GET( playlist_url  )
+        if DEBUG_LEVEL > 2: Log.Debug(DBG( "playlistHtml: %s" % playlistHtml ))
+        cookie_dict = CookieStringToDict( playlist_url )
+        LogCookies( cookie_dict )
+        http_cookies = CookieDictToString( cookie_dict )
 
-        return IndirectResponse( VideoClipObject, key = HTTPLiveStreamURL( url = playlist_url ), http_cookies = cookies )
+   
+
+
+        # Play the stream...
+        return IndirectResponse( VideoClipObject, key = HTTPLiveStreamURL( url = playlist_url ), http_cookies = http_cookies )
 
     except:
         Log.Error(DBG( "PlayVideo(%s) FAILED!" % url ))

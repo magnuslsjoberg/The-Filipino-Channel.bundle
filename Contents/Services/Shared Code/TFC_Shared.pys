@@ -6,8 +6,9 @@ import urllib
 # General
 USER_AGENT = 'Mozilla/5.0 (iPad: CPU OS 10_0 like Mac OS X; en-us) AppleWebKit/602.1.38 (KHTML, like Gecko) Version/10.0 Mobile/14A300 Safari/602.1'
 
-HTTP.Headers['User-Agent'] = USER_AGENT
+HTTP.Headers['Accept']          = '*/*'
 HTTP.Headers['Accept-Encoding'] = 'br, gzip, deflate'
+HTTP.Headers['User-Agent'] = USER_AGENT
 
 
 # TFC URLs
@@ -39,33 +40,6 @@ except:
 
 
 ####################################################################################################
-def Logout():
-
-    global COOKIES
-    
-    try:
-
-        # Need to logout
-        Log.Info(DBG( "Logging out..." ))
-        
-        LOGOUT_URL     = 'https://kapamilya-accounts.abs-cbn.com/api/spa/SSOLogout'
-        LOGOUT_HEADERS = {
-            'Cookie': COOKIES
-        }
-        LOGOUT_PARAMS  = {
-            'Origin'  : 'https://kapamilya-accounts.abs-cbn.com',
-            'Referer' : 'https://kapamilya-accounts.abs-cbn.com/'
-        }
-        ignore = HtmlFromUrl_GET( LOGOUT_URL, headers = LOGOUT_HEADERS, params = LOGOUT_PARAMS )
-        COOKIES = ''
-        HTTP.ClearCookies()
-
-    except:
-        Log.Error(DBG( "Failed to log out!" ))
-        pass
-
-
-####################################################################################################
 def DBG(message):
     
     return "## TFCTV LOG ## %s ##" % str(message)
@@ -88,13 +62,13 @@ def DataFromUrl( url, headers = {}, params = None, method = 'GET', immediate = T
     try:
         if method == 'POST':
             #Log.Debug( "#### DataFromUrl_POST  ####" )
-            response = HTTP.Request( url = url, headers = headers, data = params, method = 'POST', immediate = immediate )
+            response = HTTP.Request( url = url, headers = headers, data = params, method = 'POST', immediate = immediate, cacheTime = 0 )
         else:
             #Log.Debug( "#### DataFromUrl_GET  ####" )
             if params:
                 url = "%s?%s" % ( url, params )
             #Log.Debug( "#### url = '%s'  ####" % url )
-            response = HTTP.Request( url = url, headers = headers, immediate = immediate )
+            response = HTTP.Request( url = url, headers = headers, immediate = immediate, cacheTime = 0 )
     except:
         Log.Exception( "# Some unknown error! #" )
 
@@ -171,6 +145,7 @@ def LogCookies( cookie_dict ):
 
 
 
+####################################################################################################
 def CurrentSessionIsValid():
 
     global COOKIES
@@ -220,6 +195,31 @@ def CurrentSessionIsValid():
     except:
         Log.Info( "#### CHECK SESSION INFO FAILED! ####" )
         return False
+
+
+####################################################################################################
+def Logout():
+
+    global COOKIES
+    
+    try:
+
+        # Need to logout
+        Log.Info(DBG( "Logging out..." ))
+        
+        LOGOUT_URL     = 'https://kapamilya-accounts.abs-cbn.com/api/spa/SSOLogout'
+        LOGOUT_HEADERS = {
+            'Cookie': COOKIES,
+            'Origin'  : 'https://kapamilya-accounts.abs-cbn.com',
+            'Referer' : 'https://kapamilya-accounts.abs-cbn.com/'
+        }
+        ignore = HtmlFromUrl_GET( LOGOUT_URL, headers = LOGOUT_HEADERS )
+        COOKIES = ''
+        HTTP.ClearCookies()
+
+    except:
+        Log.Error(DBG( "Failed to log out!" ))
+        pass
    
    
 #####################################################################################################
@@ -499,7 +499,6 @@ def Login():
             'redirectURL'       : TFC_REDIRECTION_URL
         }
         
-        Log.Debug("@@@@@@@@@@@@@@@ redirectURL = '%s' @@@@@@@@@@@@@@@@" % GIGYA_SSO_GATEWAY_PARAMS['redirectURL'] )
         ssoGatewayHtml = HtmlFromUrl_POST( GIGYA_SSO_GATEWAY_URL, headers = GIGYA_SSO_GATEWAY_HEADERS, params = GIGYA_SSO_GATEWAY_PARAMS )
         #Log.Debug( "#### GIGYA SSO GATEWAY HTML = %s ####" % ssoGatewayHtml )
 
@@ -524,14 +523,17 @@ def Login():
 
 
         # This is the very special callback that will do the actual login!!
+        Log.Info( "#### Make the TFC callback call ####" )
         AUTHORIZATION_CALLBACK_HEADERS = {
             'Cookie' : CookieDictToString( cookie_dict )
         }
         try:
-            response = HTTP.Request( url = TFC_REDIRECTION_URL, headers = AUTHORIZATION_CALLBACK_HEADERS, immediate = True, follow_redirects = False )
+            response = HTTP.Request( url = TFC_REDIRECTION_URL, headers = AUTHORIZATION_CALLBACK_HEADERS, immediate = True, follow_redirects = False, cacheTime = 0 )
          
         ###except Ex.RedirectError as e:
         except Exception as e:
+        
+            #Log.Debug( "#### Exception ####" )
                         
             if ( e.code == 302 ):
                 #Log.Debug( "#### RedirectError 302 ####" )
@@ -541,8 +543,8 @@ def Login():
 
                 if e.headers and 'Location' in e.headers:
                     tfcAuthorizationUrl = e.headers['Location']
-                    #Log.Info( "#### tfcAuthorizationUrl = '%s' ####" % tfcAuthorizationUrl )
-                    callbackHtml = HTTP.Request( tfcAuthorizationUrl, headers = AUTHORIZATION_CALLBACK_HEADERS, immediate = True ).content
+                    Log.Info( "#### tfcAuthorizationUrl = '%s' ####" % tfcAuthorizationUrl )
+                    callbackHtml = HTTP.Request( tfcAuthorizationUrl, headers = AUTHORIZATION_CALLBACK_HEADERS, immediate = True, cacheTime = 0 ).content
                     #Log.Debug( "#### TFC CALLBACK HTML = %s ####" % callbackHtml )
                     cookie_dict.update( CookieStringToDict( AUTHORIZATION_CALLBACK_URL ) )
                     LogCookies( cookie_dict )
