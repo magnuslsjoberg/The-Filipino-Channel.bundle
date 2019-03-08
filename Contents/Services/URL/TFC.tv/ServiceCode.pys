@@ -179,7 +179,6 @@ def MediaObjectsForURL(url):
     return [
         MediaObject(
             parts = [ PartObject(key=HTTPLiveStreamURL(Callback(PlayVideo, url=url)))],
-            protocol                = 'hls',
             optimized_for_streaming = True,
             audio_channels          = 2,
             video_resolution        = 720
@@ -206,28 +205,9 @@ def PlayVideo( url, **kwargs ):
 
         if DEBUG_LEVEL > 1: Log.Debug(DBG( "playlist_url: %s" % playlist_url ))
 
-        '''
-        # Read the playlist to get the akamai cookies!
-        playlist = HTTP.Request( playlist_url, cacheTime = 0, immediate = True )
-        if DEBUG_LEVEL > 2: Log.Debug(DBG( "playlist: %s" % playlist.content ))
-
-        # Extract and update cookies
-        http_cookies = HTTP.CookiesForURL(playlist_url)
-        if DEBUG_LEVEL > 2: Log.Debug(DBG( "Final cookies for playlist_url: %s" % http_cookies ))
-        '''
-        
-        # Read the playlist to get the akamai cookies!
-        playlistHtml = HtmlFromUrl_GET( playlist_url  )
-        if DEBUG_LEVEL > 2: Log.Debug(DBG( "playlistHtml: %s" % playlistHtml ))
-        cookie_dict = CookieStringToDict( playlist_url )
-        LogCookies( cookie_dict )
-        http_cookies = CookieDictToString( cookie_dict )
-
-   
-
-
         # Play the stream...
-        return IndirectResponse( VideoClipObject, key = HTTPLiveStreamURL( url = playlist_url ), http_cookies = http_cookies )
+        ###return IndirectResponse( VideoClipObject, key = HTTPLiveStreamURL( url = playlist_url ) )
+        return IndirectResponse( VideoClipObject, key = playlist_url)
 
     except:
         Log.Error(DBG( "PlayVideo(%s) FAILED!" % url ))
@@ -277,7 +257,8 @@ def GetPlaylistURL( url ):
         }
         mediaInfoJson = JsonFromUrl_POST( MEDIA_INFO_URL, headers = MEDIA_INFO_HEADERS, params = MEDIA_INFO_PARAMS )
 
-        if DEBUG_LEVEL > 2: Log.Debug(DBG( "JSON:  %s" % json.dumps( mediaInfoJson, indent = 4, sort_keys = True ) ))
+        ##if DEBUG_LEVEL > 2: Log.Debug(DBG( "JSON:  %s" % json.dumps( mediaInfoJson, indent = 4, sort_keys = True ) ))
+        Log.Debug(DBG( "JSON:  %s" % json.dumps( mediaInfoJson, indent = 4, sort_keys = True ) ))
 
         if mediaInfoJson['StatusCode'] == 1 and mediaInfoJson['StatusMessage'] == 'OK':
             return mediaInfoJson['media']['source'][0]['src']
