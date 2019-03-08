@@ -1,5 +1,7 @@
 # The-Filipino-Channel.bundle
 
+2019-03-08 Working on the Safari web player and iOS (use old player, not mpv). Does NOT work in Plex Media Player (macos,RPi)
+
 2019-03-02 PARTIAL PROGRESS!  It now works on the Safari web player! Please note the extensive logging, so carefully 
 check your logs before posting them anywhere!
 
