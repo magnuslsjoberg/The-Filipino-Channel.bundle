@@ -1,7 +1,16 @@
 from TFC_Shared import *
 
 import json
+import os
 
+if 'PLEXTOKEN' in os.environ:
+    PLEX_TOKEN = os.environ['PLEXTOKEN']
+else:
+    PLEX_TOKEN = None
+    
+    
+    
+    
 # TFC id URL patterns 
 RE_VIDEO_ID = Regex(r"(?P<url>https?://tfc.tv/(episode|live)/details/(?P<video_id>\d+))(/?.*)")
 
@@ -25,251 +34,57 @@ RE_INFO_EPISODE = Regex(r"Episode\s+(?P<index>\d+)\s+of\s+\d+\s+\|\s+(?P<date>[1
 RE_INFO_MOVIE   = Regex(r"(?P<date>[1-2][0-9][0-9][0-9])\s+\|\s+(?P<hours>[0-9])H (?P<minutes>[0-5][0-9])M")
          
 # style="background-image:url(https://timg.tfc.tv/xcms/categoryimages/4046/I-AMERICA-HERO-WEB.jpg);">
-RE_MOVIE_BANNER_PATH = Regex(r'background-image:url\((?P<banner_path>[^"]+)\);')
+RE_MOVIE_BANNER_PATH = Regex(r'background-image:url\((?P<banner_path>[^"]+)\);')       
 
-# Regex for getting URL domain name
-RE_DOMAIN = Regex(r"https?://(?P<domain>[^\/]+)")        
-
-
+    
+    
 ####################################################################################################
-def NormalizeURL( url ):
+def NormalizeURLxxxxxxxx( url ):
 
-    if DEBUG_LEVEL > 3: Log.Debug(DBG( "NormalizeURL, url_in  = '%s'" % (url) ))
+    if DEBUG_LEVEL > 0: Log.Debug(DBG( "NormalizeURL, url_in  = '%s'" % (url) ))
 
     m = RE_VIDEO_ID.match( url )        
     if m:
         url = m.group('url')
-        if DEBUG_LEVEL > 3: Log.Debug(DBG( "NormalizeURL, url_out = '%s'" % (url) ))
+        if DEBUG_LEVEL > 0: Log.Debug(DBG( "NormalizeURL, url_out = '%s'" % (url) ))
     
     return url
 
 ####################################################################################################
 def MetadataObjectForURL( url ):
 
-    if DEBUG_LEVEL > 3: Log.Debug(DBG( "MetadataObjectForURL, url = '%s'" % (url) ))
-    
-    try:
-    
-        html = HTML.ElementFromURL( url, cacheTime = CACHE_TIME )
-
-        try:
-            info = html.xpath('//div[contains(@class,"hero-image-rating")]/text()')[0]
-            info = String.DecodeHTMLEntities( info ).strip()
-        except:
-            info = None
-
-        try:
-            title  = html.xpath('//meta[@property="og:title"]/@content')[0]
-            title = String.DecodeHTMLEntities( title ).strip()
-        except:
-            title = None
-
-        try:
-            summary = html.xpath('//meta[@property="og:description"]/@content')[0]
-            summary = String.DecodeHTMLEntities( summary ).strip()
-        except:
-            summary = None
-
-        try:
-            image = html.xpath('//meta[@property="og:image"]/@content')[0].strip()
-        except:
-            image = None
-
-        try:
-            banner_path = html.xpath('//div[@class="header-hero-image"]/@style')[0]
-            banner = RE_MOVIE_BANNER_PATH.search( banner_path ).group('banner_path')
-        except:
-            banner = None
-
-        try:
-            show = html.xpath('//h1[@class="topic-title-h1"]')[0]
-            show = String.DecodeHTMLEntities( show ).strip()
-        except:
-            show = None
-            
-        if DEBUG_LEVEL > 3: Log.Debug(DBG( "info     : %s" % (info) ))
-        if DEBUG_LEVEL > 3: Log.Debug(DBG( "title    : %s" % (title) ))
-        if DEBUG_LEVEL > 3: Log.Debug(DBG( "summary  : %s" % (summary[:50]) ))
-        if DEBUG_LEVEL > 3: Log.Debug(DBG( "image    : %s" % (image) ))
-        if DEBUG_LEVEL > 3: Log.Debug(DBG( "banner   : %s" % (banner) ))
-        if DEBUG_LEVEL > 3: Log.Debug(DBG( "show     : %s" % (show) ))
-                    
-        canonical_url = html.xpath('//link[@rel="canonical"]/@href')[0]
-        if DEBUG_LEVEL > 3: Log.Debug(DBG( "canonical_url : %s" % (canonical_url) ))
-
-        if RE_TYPE_EPISODE.match( canonical_url ):
-        
-            m = RE_INFO_EPISODE.match( info )
-            if m:
-                index    = int(m.group('index'))
-                date     = Datetime.ParseDate(m.group('date'))
-                duration = 60 * 1000 * int(m.group('minutes'))
-            else:
-                index    = None
-                date     = None
-                duration = None
-
-            if DEBUG_LEVEL > 3: Log.Debug(DBG( "index    : %s" % (index) ))
-            ####if DEBUG_LEVEL > 3: Log.Debug(DBG( "date     : %s" % (date.strftime('%Y-%m-%d')) ))
-            if DEBUG_LEVEL > 3: Log.Debug(DBG( "duration : %s" % (duration) ))
-            if DEBUG_LEVEL > 3: Log.Debug(DBG( "RETURN EpisodeObject" ))
-                     
-            return( EpisodeObject(
-                             title                   = title,
-                             thumb                   = image,
-                             source_title            = 'TFC.tv',
-                             summary                 = summary,
-                             show                    = show,
-                             #season                  = season,
-                             absolute_index           = index,
-                             duration                = duration,
-                             originally_available_at = date,
-                             art                     = banner
-                           ))
-                       
-        elif RE_TYPE_MOVIE.match( canonical_url ):
-        
-            m = RE_INFO_MOVIE.match( info )
-            if m:
-                date     = Datetime.ParseDate(m.group('date'))
-                duration = 60 * 1000 * (int(m.group('hours')) + 60 * int(m.group('minutes')))
-            else:
-                date     = None
-                duration = None
-
-            #if DEBUG_LEVEL > 3: Log.Debug(DBG( "date     : %s" % (date.strftime('%Y-%m-%d')) ))
-            if DEBUG_LEVEL > 3: Log.Debug(DBG( "duration : %d" % (duration) ))
-            if DEBUG_LEVEL > 3: Log.Debug(DBG( "RETURN MovieObject" ))
-
-            return( MovieObject(
-                             title                   = title,
-                             thumb                   = image,
-                             source_title            = 'TFC.tv',
-                             summary                 = summary,
-                             tagline                 = title,
-                             duration                = duration,
-                             originally_available_at = date,
-                             art                     = banner
-                           ))
-                                                      
-        elif RE_TYPE_LIVE.match( canonical_url ):
-    
-            if DEBUG_LEVEL > 3: Log.Debug(DBG( "RETURN VideoClipObject" ))
-
             return( VideoClipObject(
-                             title                   = title,
-                             thumb                   = image,
+                             title                   = 'MetadataObjectForURL',
                              source_title            = 'TFC.tv',
-                             summary                 = summary,
+                             summary                 = 'url = %s' % url,
                              #duration                = duration,
                              #originally_available_at = originally_available_at,
-                             art                     = banner
                          ))
 
-    except:
-        Log.Error(DBG( "MetadataObjectForURL FAILED! url = '%s'" % (url) ))
-    
-    raise Ex.MediaNotAvailable
 
 
 ####################################################################################################
 def MediaObjectsForURL(url):
 
-    if DEBUG_LEVEL > 3: Log.Debug(DBG( "MediaObjectsForURL, url = '%s'" % (url) ))
+    if DEBUG_LEVEL > 0: Log.Debug(DBG( "MediaObjectsForURL, url = '%s'" % (url) ))
     return [
         MediaObject(
-            parts = [ PartObject(key=HTTPLiveStreamURL(Callback(PlayVideo, url=url)))],
-            optimized_for_streaming = True,
+            parts = [
+                PartObject( key = HTTPLiveStreamURL( Callback( PlayVideo_dummy, url = url )))
+            ],
+            video_resolution        = '720',
             audio_channels          = 2,
-            video_resolution        = 720
-            )
-        ]
+            optimized_for_streaming = True
+        )
+    ]
+
 
 
 ####################################################################################################
 @indirect
-def PlayVideo( url, **kwargs ):
-
-    try:
-
-        if DEBUG_LEVEL > 1: Log.Debug(DBG( "PlayVideo, url = '%s'" % (url) ))
-
-        if DEBUG_LEVEL > 1: Log.Debug(DBG( "Client.Product: '%s', Client.Platform: '%s'" % (Client.Product,Client.Platform) ))
-
-        # Get the m3u8 playlist url
-        playlist_url = GetPlaylistURL( url )
-
-        # Remove bandwidth limitation
-        playlist_url = playlist_url.replace('&b=100-1000', '')
-        playlist_url = playlist_url + '&__b__=5000'
-
-        if DEBUG_LEVEL > 1: Log.Debug(DBG( "playlist_url: %s" % playlist_url ))
-
-        # Play the stream...
-        ###return IndirectResponse( VideoClipObject, key = HTTPLiveStreamURL( url = playlist_url ) )
-        return IndirectResponse( VideoClipObject, key = playlist_url)
-
-    except:
-        Log.Error(DBG( "PlayVideo(%s) FAILED!" % url ))
-
-    raise Ex.MediaNotAvailable
-
-
-####################################################################################################
-def GetPlaylistURL( url ):
-
-    try:
+def PlayVideo_dummy( url, **kwargs ):
+    # dummy function
+    return IndirectResponse( VideoClipObject, key = HTTPLiveStreamURL( url = url ) )
     
-        if DEBUG_LEVEL > 1: Log.Debug(DBG( "GetPlaylistURL, url = '%s'" % (url) ))
 
-        # Login
-        cookies = Login()
-        if DEBUG_LEVEL > 0: Log.Debug(DBG( "cookies: '%s'" % (cookies) ))
-        
-        # Get episode/movie details
-        source = HTTP.Request( url ).content
-
-        # Extract episode and show id from HTML
-        m = RE_MEDIA_ID.search( source )
-        try:
-            episode_id = m.group('episode_id')
-            if DEBUG_LEVEL > 3: Log.Debug(DBG( "episode_id = %s" % (episode_id) ))
-        except:
-            Log.Error(DBG( "episode_id not found!" ))
-            raise
-        try:
-            show_id = m.group('show_id')
-            if DEBUG_LEVEL > 3: Log.Debug(DBG( "show_id = %s" % (show_id) ))
-        except:
-            Log.Error(DBG( "show_id not found!" ))
-            raise
-
-        # Build up POST request to get media info
-        MEDIA_INFO_URL      = 'https://tfc.tv/media/fetch'    
-        MEDIA_INFO_HEADERS  =  {
-            'Cookie'  : cookies,
-            'Referer' : url
-        }
-        MEDIA_INFO_PARAMS = {
-            'eid' : episode_id,
-            'sid' : show_id, 
-            'pv'  : 'false'
-        }
-        mediaInfoJson = JsonFromUrl_POST( MEDIA_INFO_URL, headers = MEDIA_INFO_HEADERS, params = MEDIA_INFO_PARAMS )
-
-        ##if DEBUG_LEVEL > 2: Log.Debug(DBG( "JSON:  %s" % json.dumps( mediaInfoJson, indent = 4, sort_keys = True ) ))
-        Log.Debug(DBG( "JSON:  %s" % json.dumps( mediaInfoJson, indent = 4, sort_keys = True ) ))
-
-        if mediaInfoJson['StatusCode'] == 1 and mediaInfoJson['StatusMessage'] == 'OK':
-            return mediaInfoJson['media']['source'][0]['src']
-        else:
-            Log.Error(DBG( "JSON ERROR %s:%s" % (mediaInfoJson['StatusCode'],mediaInfoJson['StatusMessage']) ))
-
-
-    except:
-        raise Ex.MediaNotAvailable
-
-    raise Ex.MediaNotAvailable
-
-        
 ## EOF ##

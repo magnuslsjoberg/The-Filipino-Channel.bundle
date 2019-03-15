@@ -68,15 +68,13 @@ def DataFromUrl( url, headers = {}, params = None, method = 'GET', immediate = T
         Log.Exception( "# Some unknown error! #" )
 
 
+    '''
     try:
-        #Log.Debug( response.headers )   
-        h = response.headers
- 
-        #Log.Debug( "### RESPONSE HEADERS =\n%s\n###" % json.dumps( h, indent = 4, sort_keys = True ) )    
+        Log.Debug( "### RESPONSE HEADERS =\n%s\n###" % json.dumps( response.headers, indent = 4, sort_keys = True ) )    
     except:
-        #Log.Debug( "### RESPONSE HEADERS = '%s' ###" % response.headers )  
+        Log.Debug( "### RESPONSE HEADERS = '%s' ###" % response.headers )  
         pass  
-    
+    '''
     #Log.Debug("\n\n*****\n%s\n\n*****\n\n" % response.content[:256] )
 
     return response.content
@@ -148,6 +146,11 @@ def CurrentSessionIsValid():
     
     Log.Info( "#### CHECK SESSION INFO ####" )         
 
+
+    if not COOKIES or COOKIES == '':
+        Log.Info( "#### Empty COOKIES ####" )  
+        return False  
+        
     if not 'UID' in GLOBAL_AUTH_INFO:
         Log.Info( "#### 'UID' not in AUTH info ####" )  
         return False       

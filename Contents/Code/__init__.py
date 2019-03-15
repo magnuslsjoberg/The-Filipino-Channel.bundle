@@ -1,3 +1,26 @@
+import json
+import os
+
+
+# TFC id URL patterns 
+RE_VIDEO_ID = Regex(r"(?P<url>https?://tfc.tv/(episode|live)/details/(?P<video_id>\d+))(/?.*)")
+
+# ID numbers to fetch the video
+#  axios.post('/media/fetch', { eid: 140506, sid: 4512, pv: false })
+RE_MEDIA_ID = Regex(r"axios\.post\('/media/fetch', \{ eid: (?P<episode_id>\d+), sid: (?P<show_id>\d+),", Regex.MULTILINE )
+
+if 'PLEXTOKEN' in os.environ:
+    PLEX_TOKEN = os.environ['PLEXTOKEN']
+else:
+    PLEX_TOKEN = None
+
+JsonFromUrl_POST = SharedCodeService.TFC_Shared.JsonFromUrl_POST
+HtmlFromUrl_GET  = SharedCodeService.TFC_Shared.HtmlFromUrl_GET
+
+
+
+
+
 # Debug
 DEBUG           = True
 DEBUG_STRUCTURE = False
@@ -31,10 +54,6 @@ RE_EPISODE_IMAGE_PATH = Regex(r'^<div data-sid="[^"]+" class="show-cover" data-s
 
 # style="background-image:url(https://timg.tfc.tv/xcms/categoryimages/4046/I-AMERICA-HERO-WEB.jpg);">
 RE_MOVIE_BANNER_PATH = Regex(r'background-image:url\((?P<banner_path>[^"]+)\);')
-
-# Constructed URLs for URL service
-URL_PLEX_MOVIE   = 'tfctv://{MOVIE_ID}'
-URL_PLEX_EPISODE = 'tfctv://{SHOW_ID}/{EPISODE_ID}'
 
 # Max number of items to show in one listing
 NUM_SHOWS_ON_PAGE = 12
@@ -109,7 +128,7 @@ def Start( **kwargs ):
     HTTP.CacheTime = CACHE_TIME
             
 ####################################################################################################
-@handler(PREFIX, TITLE, art=ART, thumb=LOGO)
+@handler( PREFIX, TITLE, art=ART, thumb=LOGO )
 def MainMenu( **kwargs ):
 
     try:
@@ -164,7 +183,7 @@ def MainMenu( **kwargs ):
 
 
 ####################################################################################################
-@route(PREFIX + '/category', cat_id=int )
+@route( PREFIX + '/category', cat_id=int )
 def Category( title, name, cat_id, **kwargs ):
 
     try:
@@ -203,93 +222,8 @@ def Category( title, name, cat_id, **kwargs ):
         return NothingFound(title, name, 'content')
 
 
-
 ####################################################################################################
-'''
-@route(PREFIX + '/search', first=int )
-def Search( query, first=0, **kwargs ):
-
-    Log.Debug( '#### IN SEARCH ####')
-    oc = ObjectContainer( title2 = 'Search Results' )
-   
-    try:
-        result = JSON.ObjectFromURL( URL_SEARCH.replace('{QUERY}',String.Quote(query)) )
-
-        Log.Debug( "RESULT: %s", result )
-
-        shows = result[first:first+MAX_NUM_SHOWS]  
-        
-        for show in shows:
-        
-            Log.Debug( " show: %s", show )
-            
-            show_id     = show['id']
-            show_name   = ExtractHtmlText( show, 'title' )
-            show_blurb  = ExtractHtmlText( show, 'blurb' )
-            show_image  = ExtractImageUrl( show, 'image' , fallback=R(ICON) )
-            show_banner = ExtractImageUrl( show, 'banner', fallback=R(ART)  )
-            
-            Log.Debug( "#### show_name  : %s" % (show_name)   )
-            Log.Debug( "#### show_blurb : %s" % (show_blurb)  )
-            Log.Debug( "#### show_image : %s" % (show_image)  )
-            Log.Debug( "#### show_banner: %s" % (show_banner) )
-
-            #oc.add( DirectoryObject( key = Callback( Show, title = 'Search Results', name = show_name, show_id = show_id ), title = show_name, thumb = show_image, art = show_banner, summary = show_blurb ) )
-
-        if len(shows) == MAX_NUM_SHOWS:
-            oc.add( NextPageObject(key = Callback( Search, query, first = first + MAX_NUM_SHOWS ) ) )
-
-        if len(oc) < 1:
-            return NothingFound('Search Results', query, 'items')
-                
-        return oc 
-    
-    except:
-    
-        return NothingFound('Search Results', query, 'content') 
-
-
-####################################################################################################
-@route(PREFIX + '/mostlovedshows', first=int )
-def MostLovedShows( title, name, first=0, **kwargs ):
-
-    try:
-
-        oc = ObjectContainer( title1 = title, title2 = name )
-
-        lovedShows = JSON.ObjectFromURL( URL_GET_MOST_LOVED_SHOWS )
-
-        shows = lovedShows[first:first+MAX_NUM_SHOWS]
-
-        Log.Debug( " * loved shows: %s" % (lovedShows) )
-
-        for show in shows:
-
-            show_id    = show['categoryId']
-            show_name  = ExtractHtmlText( show, 'categoryName' )
-            show_blurb = ExtractHtmlText( show, 'blurb' )
-            show_image = ExtractImageUrl( show, 'image', fallback=R(ICON) )
-
-            Log.Debug( "Add loved show: %s" % (show_name) )
-
-            #oc.add( DirectoryObject( key = Callback( Show, title = name, name = show_name, show_id = show_id ), title = show_name, thumb = show_image, summary = show_blurb ) )
-
-        if len(shows) == MAX_NUM_SHOWS:
-            oc.add( NextPageObject(key = Callback( MostLovedShows, title = title, name = name, first = first + MAX_NUM_SHOWS ) ) )
-
-        if len(oc) < 1:
-            return NothingFound(title, name, 'shows')
-                
-        return oc
-
-    except:
-
-        return NothingFound(title, name, 'content')
-
-'''
-
-####################################################################################################
-@route(PREFIX + '/subcategory', page=int )
+@route( PREFIX + '/subcategory', page=int )
 def SubCategory( title, name, url, page=1, **kwargs ):
  
     try:
@@ -359,7 +293,7 @@ def SubCategory( title, name, url, page=1, **kwargs ):
 
 
 ####################################################################################################
-@route(PREFIX + '/show', page=int )
+@route( PREFIX + '/show', page=int )
 def Show( title, name, url, page=1, **kwargs ):
  
     try:
@@ -415,16 +349,30 @@ def Show( title, name, url, page=1, **kwargs ):
             live_banner = live_image
             if DEBUG_LEVEL > 2: Log.Debug(DBG( "  live_banner : %s" % (live_banner) ))
 
-            oc.add( VideoClipObject(
-                     url                     = canonical_url,
-                     title                   = live_name,
-                     thumb                   = live_image,
-                     source_title            = 'TFC.tv',
-                     summary                 = live_blurb,
-                     #duration                = duration,
-                     #originally_available_at = originally_available_at,
-                     art                     = live_banner
-                 ))
+            oc.add( 
+                VideoClipObject(
+                    #url                     = canonical_url,
+                    key = Callback( MetadataObjectForURL_INIT, url = canonical_url ),
+                    rating_key = canonical_url,
+                    title                   = live_name,
+                    thumb                   = live_image,
+                    source_title            = 'TFC.tv',
+                    summary                 = live_blurb,
+                    #duration                = duration,
+                    #originally_available_at = originally_available_at,
+                    art                     = live_banner,
+                    items = [
+                        MediaObject(
+                            parts = [
+                                PartObject( key = HTTPLiveStreamURL( Callback( PlayVideo_INIT, url = BASE_URL + episode_url )))
+                            ],
+                            video_resolution = '720',
+                            audio_channels = 2,
+                            optimized_for_streaming = True
+                        )
+                    ]
+                )
+            )
 
             return oc
 
@@ -466,17 +414,30 @@ def Show( title, name, url, page=1, **kwargs ):
             movie_url = html.xpath('//div[contains(@class,"header-hero-image")]//a/@href')[0]
             if DEBUG_LEVEL > 2: Log.Debug(DBG( "    movie_url : %s" % (movie_url) ))
 
-            oc.add( MovieObject(
-                     url                     = BASE_URL + movie_url,
-                     title                   = movie_name,
-                     thumb                   = movie_image,
-                     source_title            = 'TFC.tv',
-                     summary                 = movie_blurb,
-                     #duration                = duration,
-                     #originally_available_at = originally_available_at,
-                     #art                     = movie_banner
-                 ))
-
+            oc.add( 
+                MovieObject(
+                    #url                     = BASE_URL + movie_url,
+                    key = Callback( MetadataObjectForURL_INIT, url = BASE_URL + movie_url ),
+                    rating_key = movie_url,
+                    title                   = movie_name,
+                    thumb                   = movie_image,
+                    source_title            = 'TFC.tv',
+                    summary                 = movie_blurb,
+                    #duration                = duration,
+                    #originally_available_at = originally_available_at,
+                    #art                     = movie_banner,
+                    items = [
+                        MediaObject(
+                            parts = [
+                                PartObject( key = HTTPLiveStreamURL( Callback( PlayVideo_INIT, url = BASE_URL + episode_url )))
+                            ],
+                            video_resolution = '720',
+                            audio_channels = 2,
+                            optimized_for_streaming = True
+                        )
+                    ]
+                )
+            )
 
             # Need to logout?
             #Log.Debug( '# About to log out 1 #' )
@@ -516,20 +477,35 @@ def Show( title, name, url, page=1, **kwargs ):
                 episode_blurb = String.DecodeHTMLEntities( episode_blurb ).strip()
                 if DEBUG_LEVEL > 2: Log.Debug(DBG( "        episode_blurb : %s..." % (episode_blurb[:50]) ))
 
-                oc.add( EpisodeObject(
-                         url                     = BASE_URL + episode_url,
-                         title                   = episode_name,
-                         thumb                   = episode_image,
-                         source_title            = 'TFC.tv',
-                         summary                 = episode_blurb,
-                         show                    = name,
-                         #season                  = season,
-                         #absolute_index           = index,
-                         #duration                = duration,
-                         #originally_available_at = originally_available_at,
-                         art                     = show_banner
-                     ))
+                oc.add( 
+                    EpisodeObject(
+                        #url                     = BASE_URL + episode_url,
+                        key = Callback( MetadataObjectForURL_INIT, url = BASE_URL + episode_url ),
+                        rating_key = episode_url,
+                        title                   = episode_name,
+                        thumb                   = episode_image,
+                        source_title            = 'TFC.tv',
+                        summary                 = episode_blurb,
+                        show                    = name,
+                        #season                  = season,
+                        #absolute_index           = index,
+                        #duration                = duration,
+                        #originally_available_at = originally_available_at,
+                        art                     = show_banner,
+                        items = [
+                            MediaObject(
+                                parts = [
+                                    PartObject( key = HTTPLiveStreamURL( Callback( PlayVideo_INIT, url = BASE_URL + episode_url )))
+                                ],
+                                video_resolution = '720',
+                                audio_channels = 2,
+                                optimized_for_streaming = True
+                            )
+                        ]
+                    )
+                )
 
+                        
             # Add 'More...' button if more pages
             if page < last_page:
                 # Speed up loading by precaching next page
@@ -551,8 +527,8 @@ def Show( title, name, url, page=1, **kwargs ):
         #Log.Debug( '# About to log out 3 #' )
         #Logout()
         return NothingFound(title, name, 'content')
-
-
+    
+    
 ####################################################################################################
 def NothingFound(title, name, items):
 
@@ -565,4 +541,389 @@ def NothingFound(title, name, items):
 
 
 ## EOF ##
+
+
+
+
+####################################################################################################
+# URLs to determine video type
+# EPISODE: http://tfc.tv/episode/details/140208/the-good-son-october-20-2017
+# MOVIE  : http://tfc.tv/show/details/2988/raketeros
+# LIVE   : http://tfc.tv/live/details/41623/anc-live-streaming
+# <link rel="canonical" href="http://tfc.tv/live/details/41623/anc-live-streaming" />
+RE_TYPE_EPISODE = Regex(r"https?://tfc.tv/episode/.*")
+RE_TYPE_MOVIE   = Regex(r"https?://tfc.tv/show/.*")
+RE_TYPE_LIVE    = Regex(r"https?://tfc.tv/live/.*")
+
+# Date and duration info
+#         Episode 20 of 27 | October 20, 2017 | 32m
+#          2017    |   1H 40M
+RE_INFO_EPISODE = Regex(r"Episode\s+(?P<index>\d+)\s+of\s+\d+\s+\|\s+(?P<date>[1-2][0-9][0-9][0-9])\s+\|\s+(?P<minutes>[0-5]?[0-9])m")
+RE_INFO_MOVIE   = Regex(r"(?P<date>[1-2][0-9][0-9][0-9])\s+\|\s+(?P<hours>[0-9])H (?P<minutes>[0-5][0-9])M")
+         
+# style="background-image:url(https://timg.tfc.tv/xcms/categoryimages/4046/I-AMERICA-HERO-WEB.jpg);">
+RE_MOVIE_BANNER_PATH = Regex(r'background-image:url\((?P<banner_path>[^"]+)\);')       
+  
+@route( PREFIX + '/MetadataObjectForURL_INIT' )
+def MetadataObjectForURL_INIT( url ):
+
+    if DEBUG_LEVEL > 0: Log.Debug(DBG( "MetadataObjectForURL, url = '%s'" % (url) ))
+    
+    try:
+    
+        html = HTML.ElementFromURL( url, cacheTime = CACHE_TIME )
+
+        try:
+            info = html.xpath('//div[contains(@class,"hero-image-rating")]/text()')[0]
+            info = String.DecodeHTMLEntities( info ).strip()
+        except:
+            info = None
+
+        try:
+            title  = html.xpath('//meta[@property="og:title"]/@content')[0]
+            title = String.DecodeHTMLEntities( title ).strip()
+        except:
+            title = None
+
+        try:
+            summary = html.xpath('//meta[@property="og:description"]/@content')[0]
+            summary = String.DecodeHTMLEntities( summary ).strip()
+        except:
+            summary = None
+
+        try:
+            image = html.xpath('//meta[@property="og:image"]/@content')[0].strip()
+        except:
+            image = None
+
+        try:
+            banner_path = html.xpath('//div[@class="header-hero-image"]/@style')[0]
+            banner = RE_MOVIE_BANNER_PATH.search( banner_path ).group('banner_path')
+        except:
+            banner = None
+
+        try:
+            show = html.xpath('//h1[@class="topic-title-h1"]')[0]
+            show = String.DecodeHTMLEntities( show ).strip()
+        except:
+            show = None
+            
+        if DEBUG_LEVEL > 3: Log.Debug(DBG( "info     : %s" % (info) ))
+        if DEBUG_LEVEL > 3: Log.Debug(DBG( "title    : %s" % (title) ))
+        if DEBUG_LEVEL > 3: Log.Debug(DBG( "summary  : %s" % (summary[:50]) ))
+        if DEBUG_LEVEL > 3: Log.Debug(DBG( "image    : %s" % (image) ))
+        if DEBUG_LEVEL > 3: Log.Debug(DBG( "banner   : %s" % (banner) ))
+        if DEBUG_LEVEL > 3: Log.Debug(DBG( "show     : %s" % (show) ))
+                    
+        canonical_url = html.xpath('//link[@rel="canonical"]/@href')[0]
+        if DEBUG_LEVEL > 3: Log.Debug(DBG( "canonical_url : %s" % (canonical_url) ))
+
+        if RE_TYPE_EPISODE.match( canonical_url ):
+        
+            m = RE_INFO_EPISODE.match( info )
+            if m:
+                index    = int(m.group('index'))
+                date     = Datetime.ParseDate(m.group('date'))
+                duration = 60 * 1000 * int(m.group('minutes'))
+            else:
+                index    = None
+                date     = None
+                duration = None
+
+            if DEBUG_LEVEL > 3: Log.Debug(DBG( "index    : %s" % (index) ))
+            ####if DEBUG_LEVEL > 3: Log.Debug(DBG( "date     : %s" % (date.strftime('%Y-%m-%d')) ))
+            if DEBUG_LEVEL > 3: Log.Debug(DBG( "duration : %s" % (duration) ))
+            if DEBUG_LEVEL > 3: Log.Debug(DBG( "RETURN EpisodeObject" ))
+                     
+            return( 
+                ObjectContainer(
+                    objects = [
+                        EpisodeObject(
+                            key                     = Callback( MetadataObjectForURL_INIT, url = canonical_url ),
+                            rating_key              = canonical_url,
+                            title                   = title,
+                            thumb                   = image,
+                            source_title            = 'TFC.tv',
+                            summary                 = summary,
+                            show                    = show,
+                            #season                  = season,
+                            absolute_index          = index,
+                            duration                = duration,
+                            originally_available_at = date,
+                            art                     = banner
+                        )
+                    ]
+                )
+            )
+                       
+        elif RE_TYPE_MOVIE.match( canonical_url ):
+        
+            m = RE_INFO_MOVIE.match( info )
+            if m:
+                date     = Datetime.ParseDate(m.group('date'))
+                duration = 60 * 1000 * (int(m.group('hours')) + 60 * int(m.group('minutes')))
+            else:
+                date     = None
+                duration = None
+
+            #if DEBUG_LEVEL > 3: Log.Debug(DBG( "date     : %s" % (date.strftime('%Y-%m-%d')) ))
+            if DEBUG_LEVEL > 3: Log.Debug(DBG( "duration : %d" % (duration) ))
+            if DEBUG_LEVEL > 3: Log.Debug(DBG( "RETURN MovieObject" ))
+
+            return( 
+                ObjectContainer(
+                    objects = [
+                        MovieObject(
+                            key                     = Callback( MetadataObjectForURL_INIT, canonical_url ),
+                            rating_key              = canonical_url,
+                            title                   = title,
+                            thumb                   = image,
+                            source_title            = 'TFC.tv',
+                            summary                 = summary,
+                            tagline                 = title,
+                            duration                = duration,
+                            originally_available_at = date,
+                            art                     = banner
+                        )
+                    ]
+                )
+            )
+                                                      
+        elif RE_TYPE_LIVE.match( canonical_url ):
+    
+            if DEBUG_LEVEL > 3: Log.Debug(DBG( "RETURN VideoClipObject" ))
+
+            return( 
+                ObjectContainer(
+                    objects = [
+                        VideoClipObject(
+                            key                     = Callback( MetadataObjectForURL_INIT, url = canonical_url ),
+                            rating_key              = canonical_url,
+                            title                   = title,
+                            thumb                   = image,
+                            source_title            = 'TFC.tv',
+                            summary                 = summary,
+                            tagline                 = title,
+                            #duration                = duration,
+                            #originally_available_at = originally_available_at,
+                            art                     = banner
+                        )
+                    ]
+                )
+            )
+      
+    except:
+        Log.Error(DBG( "MetadataObjectForURL_INIT FAILED! url = '%s'" % (url) ))
+    
+    raise Ex.MediaNotAvailable
+    
+    
+    
+    
+
+
+
+####################################################################################################
+@route( PREFIX + '/playvideo.m3u8' )
+def PlayVideo_INIT( url, **kwargs ):
+
+    try:
+
+        if DEBUG_LEVEL > 1: Log.Debug(DBG( "PlayVideo_INIT, url = '%s'" % (url) ))
+
+        # Get the m3u8 playlist url
+        playlistUrl = GetPlaylistURL( url )
+        if DEBUG_LEVEL > 1: Log.Debug(DBG( "playlistUrl: %s" % playlistUrl ))
+
+        if DEBUG_LEVEL > 1: Log.Debug(DBG( "Client.Product: '%s', Client.Platform: '%s'" % (Client.Product,Client.Platform) ))
+        
+        #if Client.Product == 'Plex Web' and Client.Platform == 'Safari':
+        #    # Play the stream directly...
+        #    return IndirectResponse( VideoClipObject, key = HTTPLiveStreamURL( url = playlistUrl ) )
+        
+        # Can't play the stream directly, need to parse index files and segments
+        indexUrl = GetIndexURL( playlistUrl )
+        if DEBUG_LEVEL > 1: Log.Debug(DBG( "indexUrl: %s" % indexUrl ))
+
+        segmentList = RewriteSegmentList( indexUrl )
+    
+        # Play the stream...
+        ###return IndirectResponse( VideoClipObject, key = HTTPLiveStreamURL( url = playlistUrl ) )
+
+        return segmentList
+  
+  
+        '''
+        some other videos have this:
+2019-03-10 13:38:35 [ DEBUG ] PlayerComponent.cpp @ 593 - ffmpeg/demuxer: hls,applehttp: HLS request for url 'https://amssabscbn.akamaized.net/f20426f8-58d4-4319-a429-3d2b801994cd/gbl-tpq-20181208-.ism/QualityLevels(40000)/Fragments(audioname=0,format=m3u8-aapl)', offset 0, playlist 0 
+2019-03-10 13:38:35 [ ERROR ] PlayerComponent.cpp @ 599 - ffmpeg/demuxer: hls,applehttp: SAMPLE-AES encryption is not supported yet 
+        '''
+
+      
+    except:
+        Log.Error(DBG( "PlayVideo(%s) FAILED!" % url ))
+
+    raise Ex.MediaNotAvailable
+
+
+####################################################################################################
+def GetPlaylistURL( url ):
+
+    try:
+    
+        playlistUrl = None
+        
+        # Login
+        cookies = Login()
+        if DEBUG_LEVEL > 0: Log.Debug(DBG( "cookies: '%s'" % (cookies) ))
+        
+        # Get episode/movie details
+        source = HTTP.Request( url ).content
+
+        # Extract episode and show id from HTML
+        m = RE_MEDIA_ID.search( source )
+        try:
+            episode_id = m.group('episode_id')
+            if DEBUG_LEVEL > 3: Log.Debug(DBG( "episode_id = %s" % (episode_id) ))
+        except:
+            Log.Error(DBG( "episode_id not found!" ))
+            raise
+        try:
+            show_id = m.group('show_id')
+            if DEBUG_LEVEL > 3: Log.Debug(DBG( "show_id = %s" % (show_id) ))
+        except:
+            Log.Error(DBG( "show_id not found!" ))
+            raise
+
+        # Build up POST request to get media info
+        MEDIA_INFO_URL      = 'https://tfc.tv/media/fetch'    
+        MEDIA_INFO_HEADERS  =  {
+            'Cookie'  : cookies,
+            'Referer' : url
+        }
+        MEDIA_INFO_PARAMS = {
+            'eid' : episode_id,
+            'sid' : show_id, 
+            'pv'  : 'false'
+        }
+        mediaInfoJson = JsonFromUrl_POST( MEDIA_INFO_URL, headers = MEDIA_INFO_HEADERS, params = MEDIA_INFO_PARAMS )
+
+        if DEBUG_LEVEL > 2: Log.Debug(DBG( "JSON:  %s" % json.dumps( mediaInfoJson, indent = 4, sort_keys = True ) ))
+
+        if not (mediaInfoJson['StatusCode'] == 1 and mediaInfoJson['StatusMessage'] == 'OK'):
+            Log.Error(DBG( "JSON ERROR %s:%s" % (mediaInfoJson['StatusCode'],mediaInfoJson['StatusMessage']) ))
+
+        # Get master playlist URL
+        playlistUrl = mediaInfoJson['media']['source'][0]['src']
+
+        # Remove bandwidth limitation
+        # playlistUrl = playlistUrl.replace('&b=100-1000', '')
+        # playlistUrl = playlistUrl + '&__b__=5000'
+        
+        return playlistUrl
+        
+    except:
+        raise Ex.MediaNotAvailable
+
+    raise Ex.MediaNotAvailable
+
+
+####################################################################################################
+###@route( PREFIX + '/index/{url}.m3u8' )
+def GetIndexURL( playlistUrl ):
+    '''
+#EXTM3U
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=362000,RESOLUTION=320x240,CODECS="avc1.66.30, mp4a.40.2",CLOSED-CAPTIONS=NONE
+https://o2-i.akamaihd.net/i/epolapple/20020725/20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/index_0_av.m3u8?null=0&id=AgBR5D7VAhetVIl4hVz4PWIc%2fviIs1XRBb534Z13CD%2fO5Yc5sLT8ZtLIaZgNJvSnDI52r%2f4EvebQZA%3d%3d&hdntl=exp=1552337417~acl=%2fi%2fepolapple%2f20020725%2f20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil%2f*~data=hdntl~hmac=ac4aa3b3426fca324f54ebc54e645e138856b201250ab04e4e9459c66f0b40b9
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=534000,RESOLUTION=480x360,CODECS="avc1.66.30, mp4a.40.2",CLOSED-CAPTIONS=NONE
+https://o2-i.akamaihd.net/i/epolapple/20020725/20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/index_1_av.m3u8?null=0&id=AgBR5D7VAhetVIl4hVz4PWIc%2fviIs1XRBb534Z13CD%2fO5Yc5sLT8ZtLIaZgNJvSnDI52r%2f4EvebQZA%3d%3d&hdntl=exp=1552337417~acl=%2fi%2fepolapple%2f20020725%2f20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil%2f*~data=hdntl~hmac=ac4aa3b3426fca324f54ebc54e645e138856b201250ab04e4e9459c66f0b40b9
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=838000,RESOLUTION=512x384,CODECS="avc1.77.30, mp4a.40.2",CLOSED-CAPTIONS=NONE
+https://o2-i.akamaihd.net/i/epolapple/20020725/20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/index_2_av.m3u8?null=0&id=AgBR5D7VAhetVIl4hVz4PWIc%2fviIs1XRBb534Z13CD%2fO5Yc5sLT8ZtLIaZgNJvSnDI52r%2f4EvebQZA%3d%3d&hdntl=exp=1552337417~acl=%2fi%2fepolapple%2f20020725%2f20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil%2f*~data=hdntl~hmac=ac4aa3b3426fca324f54ebc54e645e138856b201250ab04e4e9459c66f0b40b9
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1046000,RESOLUTION=640x480,CODECS="avc1.77.30, mp4a.40.2",CLOSED-CAPTIONS=NONE
+https://o2-i.akamaihd.net/i/epolapple/20020725/20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/index_3_av.m3u8?null=0&id=AgBR5D7VAhetVIl4hVz4PWIc%2fviIs1XRBb534Z13CD%2fO5Yc5sLT8ZtLIaZgNJvSnDI52r%2f4EvebQZA%3d%3d&hdntl=exp=1552337417~acl=%2fi%2fepolapple%2f20020725%2f20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil%2f*~data=hdntl~hmac=ac4aa3b3426fca324f54ebc54e645e138856b201250ab04e4e9459c66f0b40b9
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1359000,RESOLUTION=640x480,CODECS="avc1.77.30, mp4a.40.2",CLOSED-CAPTIONS=NONE
+https://o2-i.akamaihd.net/i/epolapple/20020725/20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/index_4_av.m3u8?null=0&id=AgBR5D7VAhetVIl4hVz4PWIc%2fviIs1XRBb534Z13CD%2fO5Yc5sLT8ZtLIaZgNJvSnDI52r%2f4EvebQZA%3d%3d&hdntl=exp=1552337417~acl=%2fi%2fepolapple%2f20020725%2f20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil%2f*~data=hdntl~hmac=ac4aa3b3426fca324f54ebc54e645e138856b201250ab04e4e9459c66f0b40b9
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1567000,RESOLUTION=640x480,CODECS="avc1.77.30, mp4a.40.2",CLOSED-CAPTIONS=NONE
+https://o2-i.akamaihd.net/i/epolapple/20020725/20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/index_5_av.m3u8?null=0&id=AgBR5D7VAhetVIl4hVz4PWIc%2fviIs1XRBb534Z13CD%2fO5Yc5sLT8ZtLIaZgNJvSnDI52r%2f4EvebQZA%3d%3d&hdntl=exp=1552337417~acl=%2fi%2fepolapple%2f20020725%2f20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil%2f*~data=hdntl~hmac=ac4aa3b3426fca324f54ebc54e645e138856b201250ab04e4e9459c66f0b40b9
+#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=62000,CODECS="mp4a.40.2",CLOSED-CAPTIONS=NONE
+https://o2-i.akamaihd.net/i/epolapple/20020725/20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/index_0_a.m3u8?null=0&id=AgBR5D7VAhetVIl4hVz4PWIc%2fviIs1XRBb534Z13CD%2fO5Yc5sLT8ZtLIaZgNJvSnDI52r%2f4EvebQZA%3d%3d&hdntl=exp=1552337417~acl=%2fi%2fepolapple%2f20020725%2f20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil%2f*~data=hdntl~hmac=ac4aa3b3426fca324f54ebc54e645e138856b201250ab04e4e9459c66f0b40b9
+    '''
+    RE_MASTER_M3U8_EXT = Regex( r"^#EXT-X-STREAM-INF:.*,BANDWIDTH=(?P<bandwidth>\d+).*,RESOLUTION=(?P<width>\d+)x(?P<height>\d+).*$" )
+    RE_MASTER_M3U8_URL = Regex( r"^(?P<url>https://.*)$" )
+    
+    #playlistUrl = String.Decode(playlistUrl)
+    #Log.Debug(DBG( "#################### playlistUrl = '%s'" % playlistUrl ))
+
+    playlistHtml = HTTP.Request( playlistUrl ).content
+    Log.Debug(DBG( "#################### PLAYLIST ####################\n%s##################################################" % playlistHtml ))
+    
+    stream  = None
+    streams = []
+    for line in playlistHtml.splitlines():
+        #Log.Debug(DBG( "line: '%s'" % (line) ))
+        m = RE_MASTER_M3U8_EXT.search( line )
+        if m:
+            stream = m.groupdict()
+            Log.Debug(DBG( "STREAM: %s" % (stream) ))
+        elif stream:
+            m = RE_MASTER_M3U8_URL.search( line )
+            if m:
+                stream['url'] = m.group('url')
+                streams.append( stream )
+                stream = None
+                Log.Debug(DBG( "INDEX URL = '%s'" % (m.group('url')) ))
+                
+    streams.sort( key = lambda s: int(s['bandwidth']), reverse = True )
+    
+    #for s in streams:
+    #    Log.Debug(DBG( s['bandwidth'] ))
+     
+    return streams[0]['url']
+    
+
+####################################################################################################
+def RewriteSegmentList( indexUrl ):
+        
+    segmentList = HTTP.Request( indexUrl ).content
+    #Log.Debug(DBG( "#################### SEGMENT LIST ####################\n%s##################################################" % segmentList[:2048] ))
+
+    RE_X_KEY_URI = Regex( r'#EXT-X-KEY:METHOD=AES-128,URI="(?P<uri>https://[^"]+)"') 
+    
+    newSegmentList = ''
+
+    for line in segmentList.splitlines():
+
+        if line.startswith('#EXT-X-KEY:'):
+            m = RE_X_KEY_URI.search( line )
+            if m:
+                oldUri = m.group('uri')
+                newUri = '/video/tfctv/segment/{}.ts?X-Plex-Token={}'.format( String.Encode(oldUri), PLEX_TOKEN )
+                newSegmentList += line.replace( oldUri, newUri ) + '\n'
+                #Log.Debug(DBG( "oldUri = '%s'" % oldUri ))
+                #Log.Debug(DBG( "newUri = '%s'" % newUri ))
+                #Log.Debug(DBG( "newLine = '%s'" % line.replace( oldUri, newUri ) ))
+        elif line.startswith('http') or '.ts' in line:
+            newSegmentList += '/video/tfctv/segment/{}.ts?X-Plex-Token={}\n'.format( String.Encode(line), PLEX_TOKEN )
+        elif 'EXT-X-DISCONTINUITY' in line:
+            continue
+        else:
+            newSegmentList += line + '\n'
+
+    #Log.Debug(DBG( "#################### NEW SEGMENT LIST ####################\n%s##################################################" % newSegmentList[:2048] ))
+
+    return newSegmentList
+    
+    
+####################################################################################################
+@route( PREFIX + '/segment/{url}.ts' )
+def Segment(url):
+
+    try:
+        return HTTP.Request( String.Decode(url), headers = HTTP.Headers, cacheTime = 0 ).content
+    except:
+        raise Ex.MediaNotAvailable
+
+
+## EOF ##
+
     
