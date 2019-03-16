@@ -13,22 +13,24 @@ PREFIX     = '/video/tfctv'
 USER_AGENT = 'Mozilla/4,0'
 
 # Resources
-ART      = 'art-tfctv.png'
-ICON     = 'icon-tfctv.png'
-LOGO     = 'icon-tfctv.png'
+ART  = 'art-tfctv.png'
+ICON = 'icon-tfctv.png'
+LOGO = 'icon-tfctv.png'
 
-# GitHub latest version
-CHECK_VERSION = False
-VERSION_URL = 'https://raw.githubusercontent.com/magnuslsjoberg/The-Filipino-Channel.bundle/master/Contents/Version.txt'
+# Client vs GitHub latest version
+VERSION       = "2.0.0"
+CHECK_VERSION = True
+VERSION_URL   = 'https://raw.githubusercontent.com/magnuslsjoberg/The-Filipino-Channel.bundle/master/Contents/Version.html'
+RE_VERSION    = Regex( r"(?P<major>\d)\.(?P<minor>\d)\.(?P<build>\d)" )
 
 # TFC main website URLs
 BASE_URL = 'https://tfc.tv'
 
-RE_SUB_CAT_ID = Regex(r"/category/list/(?P<sub_cat_id>\d+)/")
-RE_SHOW_ID    = Regex(r"/show/details/(?P<show_id>\d+)/")
-RE_EPISODE_ID = Regex(r"/episode/details/(?P<episode_id>\d+)/")
-RE_MOVIE_ID   = Regex(r"/episode/details/(?P<movie_id>\d+)/")
-RE_LIVE_ID    = Regex(r"/live/details/(?P<live_id>\d+)/")
+RE_SUB_CAT_ID = Regex( r"/category/list/(?P<sub_cat_id>\d+)/")
+RE_SHOW_ID    = Regex( r"/show/details/(?P<show_id>\d+)/")
+RE_EPISODE_ID = Regex( r"/episode/details/(?P<episode_id>\d+)/")
+RE_MOVIE_ID   = Regex( r"/episode/details/(?P<movie_id>\d+)/")
+RE_LIVE_ID    = Regex( r"/live/details/(?P<live_id>\d+)/")
 
 # For some extremely strange and annoying reason data-src can't be extracted with XPath!!!
 # <div data-sid="4655" class="show-cover" data-src="https://timg.tfc.tv/xcms/episodeimages/129284/20170614-ikaw-487-1.jpg">
@@ -42,13 +44,20 @@ NUM_SHOWS_ON_PAGE = 12
 MAX_NUM_EPISODES  = 50
 
 
-VERSION = "x.x.x"
 CACHE_TIME  = 0
 DEBUG_LEVEL = 0
 
-Login  = SharedCodeService.TFC_Shared.Login
-Logout = SharedCodeService.TFC_Shared.Logout
-DBG    = SharedCodeService.TFC_Shared.DBG
+# Regex for parsing the master.m3u8 file
+RE_MASTER_M3U8_EXT = Regex( r"^#EXT-X-STREAM-INF:.*,BANDWIDTH=(?P<bandwidth>\d+).*,RESOLUTION=(?P<width>\d+)x(?P<height>\d+).*$" )
+RE_MASTER_M3U8_URL = Regex( r"^(?P<url>https://.*)$" )
+
+# Parsing index....m3u8
+RE_X_KEY_URI = Regex( r'#EXT-X-KEY:METHOD=AES-128,URI="(?P<uri>https://[^"]+)"') 
+
+        
+Logout     = SharedCodeService.TFC_Shared.Logout
+DBG        = SharedCodeService.TFC_Shared.DBG
+PLEX_TOKEN = SharedCodeService.TFC_Shared.PLEX_TOKEN
 
 ####################################################################################################
 @route(PREFIX + '/validateprefs')
@@ -86,7 +95,6 @@ def SetPrefs():
 def Start( **kwargs ):
     
     Log.Info(DBG( "Starting TFC.tv channel. Version: %s" % VERSION ))
-    Log.Info(DBG( "Client.Product: '%s', Client.Platform: '%s'" % (Client.Product,Client.Platform) ))
             
     InputDirectoryObject.thumb = R('Search.png')
     DirectoryObject.art  = R(ART)
@@ -123,19 +131,22 @@ def MainMenu( **kwargs ):
             try:
                 html = HTML.ElementFromURL( VERSION_URL, cacheTime = 0 ) #### 24*CACHE_1HOUR )
                 
-                version = HTML.StringFromElement(html)
-                Log.Info( version )
+                vStringGitHub = html.xpath('//pre[@id="version"]/text()')[0]
+                if DEBUG_LEVEL > 0: Log.Debug(DBG( "Client version: '%s', GitHub version: '%s'" % (VERSION,vStringGitHub)))
+
+                vClientDict = RE_VERSION.match(VERSION).groupdict()
+                vGitHubDict = RE_VERSION.match(vStringGitHub).groupdict()
                 
-                oc.header  = "UPGRADE AVAILABLE!"
-                oc.message = "Latest version %s found." % (version)
-        
-                return oc
+                versionClient = 100 * int(vClientDict['major']) + 10 * int(vClientDict['minor']) + 1 * int(vClientDict['build'])
+                versionGitHub = 100 * int(vGitHubDict['major']) + 10 * int(vGitHubDict['minor']) + 1 * int(vGitHubDict['build'])
+                
+                if versionGitHub > versionClient:
+                    oc.header  = "UPGRADE AVAILABLE!"
+                    oc.message = "Latest version %s found." % (version)
+                    return oc
 
             except:
-                oc.header  = "ALL OK"
-                oc.message = "NO version found."
-
-                return oc
+                pass
             
         if DEBUG_LEVEL > 0: Log.Debug(DBG( "Parsing main TFC page..." ))
 
@@ -515,8 +526,6 @@ def GetIndexURL( playlistUrl ):
     #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=62000,CODECS="mp4a.40.2",CLOSED-CAPTIONS=NONE
     https://o2-i.akamaihd.net/i/epolapple/20020725/20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/index_0_a.m3u8?null=0&id=AgBR5D7VAhetVIl4hVz4PWIc%2fviIs1XRBb534Z13CD%2fO5Yc5sLT8ZtLIaZgNJvSnDI52r%2f4EvebQZA%3d%3d&hdntl=exp=1552337417~acl=%2fi%2fepolapple%2f20020725%2f20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil%2f*~data=hdntl~hmac=ac4aa3b3426fca324f54ebc54e645e138856b201250ab04e4e9459c66f0b40b9
     '''
-    RE_MASTER_M3U8_EXT = Regex( r"^#EXT-X-STREAM-INF:.*,BANDWIDTH=(?P<bandwidth>\d+).*,RESOLUTION=(?P<width>\d+)x(?P<height>\d+).*$" )
-    RE_MASTER_M3U8_URL = Regex( r"^(?P<url>https://.*)$" )
 
     playlistHtml = HTTP.Request( playlistUrl ).content
     if DEBUG_LEVEL > 5: Log.Debug(DBG( "#################### PLAYLIST ####################\n%s##################################################" % playlistHtml ))
@@ -524,7 +533,7 @@ def GetIndexURL( playlistUrl ):
     stream  = None
     streams = []
     for line in playlistHtml.splitlines():
-        #Log.Debug(DBG( "line: '%s'" % (line) ))
+        if DEBUG_LEVEL > 7: Log.Debug(DBG( "line: '%s'" % (line) ))
         m = RE_MASTER_M3U8_EXT.search( line )
         if m:
             stream = m.groupdict()
@@ -547,17 +556,9 @@ def GetIndexURL( playlistUrl ):
 
 ####################################################################################################
 def RewriteSegmentList( indexUrl ):
-
-    if 'PLEXTOKEN' in os.environ:
-        PLEX_TOKEN = os.environ['PLEXTOKEN']
-    else:
-        PLEX_TOKEN = None
     
     segmentList  = HTTP.Request( indexUrl ).content
-    #Log.Debug(DBG( "#################### SEGMENT LIST ####################\n%s##################################################" % segmentList[:2048] ))
-    HTTP.Headers['Cookie'] = HTTP.CookiesForURL(indexUrl) 
-
-    RE_X_KEY_URI = Regex( r'#EXT-X-KEY:METHOD=AES-128,URI="(?P<uri>https://[^"]+)"') 
+    if DEBUG_LEVEL > 5: Log.Debug(DBG( "#################### SEGMENT LIST ####################\n%s##################################################" % segmentList[:2048] ))
     
     newSegmentList = ''
 
@@ -569,9 +570,9 @@ def RewriteSegmentList( indexUrl ):
                 oldUri = m.group('uri')
                 newUri = '/video/tfctv/segment/{}.ts?X-Plex-Token={}'.format( String.Encode(oldUri), PLEX_TOKEN )
                 newSegmentList += line.replace( oldUri, newUri ) + '\n'
-                #Log.Debug(DBG( "oldUri = '%s'" % oldUri ))
-                #Log.Debug(DBG( "newUri = '%s'" % newUri ))
-                #Log.Debug(DBG( "newLine = '%s'" % line.replace( oldUri, newUri ) ))
+                if DEBUG_LEVEL > 5: Log.Debug(DBG( "oldUri = '%s'" % oldUri ))
+                if DEBUG_LEVEL > 5: Log.Debug(DBG( "newUri = '%s'" % newUri ))
+                if DEBUG_LEVEL > 5: Log.Debug(DBG( "newLine = '%s'" % line.replace( oldUri, newUri ) ))
         elif line.startswith('http') or '.ts' in line:
             newSegmentList += '/video/tfctv/segment/{}.ts?X-Plex-Token={}\n'.format( String.Encode(line), PLEX_TOKEN )
         elif 'EXT-X-DISCONTINUITY' in line:

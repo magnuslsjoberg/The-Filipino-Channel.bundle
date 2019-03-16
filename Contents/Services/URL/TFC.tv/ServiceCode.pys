@@ -1,12 +1,6 @@
 from TFC_Shared import *
 
 import json
-import os
-
-if 'PLEXTOKEN' in os.environ:
-    PLEX_TOKEN = os.environ['PLEXTOKEN']
-else:
-    PLEX_TOKEN = None
     
 # TFC id URL patterns 
 RE_VIDEO_ID = Regex(r"(?P<url>https?://tfc.tv/(episode|live)/details/(?P<video_id>\d+))(/?.*)")
@@ -32,8 +26,8 @@ RE_INFO_MOVIE   = Regex(r"(?P<date>[1-2][0-9][0-9][0-9])\s+\|\s+(?P<hours>[0-9])
          
 # style="background-image:url(https://timg.tfc.tv/xcms/categoryimages/4046/I-AMERICA-HERO-WEB.jpg);">
 RE_MOVIE_BANNER_PATH = Regex(r'background-image:url\((?P<banner_path>[^"]+)\);')       
-    
-    
+
+
 ####################################################################################################
 def NormalizeURL( url ):
 
@@ -182,15 +176,16 @@ def MediaObjectsForURL(url):
     if DEBUG_LEVEL > 3: Log.Debug(DBG( "MediaObjectsForURL, url = '%s'" % (url) ))
     return [
         MediaObject(
-            parts = [ PartObject( key = Callback( PlayVideo, url = url ) ) ],
-            container               = 'mp4',
-            audio_codec             = 'aac',
-            video_codec             = 'h264',
-            video_resolution        = 720,
-            optimized_for_streaming = True
-            )
-        ]
+            parts = [ 
+                PartObject( key = HTTPLiveStreamURL( Callback( PlayVideo, url = url ) ) )
+            ]                             ,
+            optimized_for_streaming = True,
+            audio_channels          =    2,
+            video_resolution        =  720
+        )
+    ]
 
+    
 
 ####################################################################################################
 def PlayVideo( url, **kwargs ):
@@ -201,14 +196,23 @@ def PlayVideo( url, **kwargs ):
 
         # Get the m3u8 playlist url
         playlistUrl = GetPlaylistURL( url )
-        if DEBUG_LEVEL > 1: Log.Debug(DBG( "playlistUrl: %s" % playlistUrl ))
+        if DEBUG_LEVEL > 1: Log.Debug(DBG( "playlistUrl: '%s'" % playlistUrl ))
         
         if DEBUG_LEVEL > 1: Log.Debug(DBG( "Client.Product: '%s', Client.Platform: '%s'" % (Client.Product,Client.Platform) ))
-        #if Client.Product == 'Plex Web' and Client.Platform == 'Safari':
+        
+        #if (Client.Product,Client.Platform) in CAN_PLAY_MASTER_M3U8:
         #    # Play the stream directly...
-        #    return IndirectResponse( VideoClipObject, key = HTTPLiveStreamURL( url = playlistUrl ) )
+        #    if DEBUG_LEVEL > 1: Log.Debug(DBG( "(%s,%s) can play the master.m3u8 directly" % (Client.Product,Client.Platform) ))
+        #    
+        #    return IndirectResponse( VideoClipObject, key = playlistUrl )
+        #else:
+        #
+        # if DEBUG_LEVEL > 1: Log.Debug(DBG( "(%s,%s) needs special handling of the master.m3u8" % (Client.Product,Client.Platform) ))
 
-        return Redirect( '/video/tfctv/playvideo/{}.m3u8?X-Plex-Token={}\n'.format( String.Encode(playlistUrl), PLEX_TOKEN ) )
+
+        # Due to a bug ffmpeg, the "Icy-Metadata" header is sent, and akamai gives a HTTP 403 response
+        # We therefor need to parse the master file, index file and segments to be able to stream (see __init__.py)
+        return Redirect( '/video/tfctv/playvideo/{}.m3u8?X-Plex-Token={}'.format( String.Encode(playlistUrl), PLEX_TOKEN ) )
       
     except:
         Log.Error(DBG( "PlayVideo(%s) FAILED!" % url ))
