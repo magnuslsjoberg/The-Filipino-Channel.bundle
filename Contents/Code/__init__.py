@@ -18,7 +18,7 @@ ICON = 'icon-tfctv.png'
 LOGO = 'icon-tfctv.png'
 
 # Client vs GitHub latest version
-VERSION       = "2.0.0"
+VERSION       = "2.0.1"
 CHECK_VERSION = True
 VERSION_URL   = 'https://raw.githubusercontent.com/magnuslsjoberg/The-Filipino-Channel.bundle/master/Contents/Version.html'
 RE_VERSION    = Regex( r"(?P<major>\d)\.(?P<minor>\d)\.(?P<build>\d)" )
@@ -55,6 +55,7 @@ RE_MASTER_M3U8_URL = Regex( r"^(?P<url>https://.*)$" )
 RE_X_KEY_URI = Regex( r'#EXT-X-KEY:METHOD=AES-128,URI="(?P<uri>https://[^"]+)"') 
 
         
+Login      = SharedCodeService.TFC_Shared.Login
 Logout     = SharedCodeService.TFC_Shared.Logout
 DBG        = SharedCodeService.TFC_Shared.DBG
 PLEX_TOKEN = SharedCodeService.TFC_Shared.PLEX_TOKEN
@@ -150,6 +151,11 @@ def MainMenu( **kwargs ):
             
         if DEBUG_LEVEL > 0: Log.Debug(DBG( "Parsing main TFC page..." ))
 
+        cookies = Login()
+        if DEBUG_LEVEL > 0: Log.Debug(DBG( "cookies: '%s'" % (cookies) ))
+
+        HTTP.Headers['Cookie'] = cookies
+        
         html = HTML.ElementFromURL( BASE_URL )
 
         categories = html.xpath('//div[@id="main_nav_desk"]/ul/li/a[@data-id]')
@@ -527,7 +533,7 @@ def GetIndexURL( playlistUrl ):
     https://o2-i.akamaihd.net/i/epolapple/20020725/20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil/index_0_a.m3u8?null=0&id=AgBR5D7VAhetVIl4hVz4PWIc%2fviIs1XRBb534Z13CD%2fO5Yc5sLT8ZtLIaZgNJvSnDI52r%2f4EvebQZA%3d%3d&hdntl=exp=1552337417~acl=%2fi%2fepolapple%2f20020725%2f20020725-epolapple-,300000,500000,800000,1000000,1300000,1500000,.mp4.csmil%2f*~data=hdntl~hmac=ac4aa3b3426fca324f54ebc54e645e138856b201250ab04e4e9459c66f0b40b9
     '''
 
-    playlistHtml = HTTP.Request( playlistUrl ).content
+    playlistHtml = HTTP.Request( playlistUrl, headers = HTTP.Headers, cacheTime = 0 ).content
     if DEBUG_LEVEL > 5: Log.Debug(DBG( "#################### PLAYLIST ####################\n%s##################################################" % playlistHtml ))
     
     stream  = None
@@ -557,7 +563,7 @@ def GetIndexURL( playlistUrl ):
 ####################################################################################################
 def RewriteSegmentList( indexUrl ):
     
-    segmentList  = HTTP.Request( indexUrl ).content
+    segmentList  = HTTP.Request( indexUrl, headers = HTTP.Headers, cacheTime = 0 ).content
     if DEBUG_LEVEL > 5: Log.Debug(DBG( "#################### SEGMENT LIST ####################\n%s##################################################" % segmentList[:2048] ))
     
     newSegmentList = ''

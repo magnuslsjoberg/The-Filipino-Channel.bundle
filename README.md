@@ -1,5 +1,7 @@
 # The-Filipino-Channel.bundle
 
+2019-06-66 Release 2.0.1  - TFC changed login again, not tested too much yet...
+
 2019-03-16 Release 2.0.0  - Working on more players...
 
 2019-03-08 Working on the Safari web player and iOS (use old player, not mpv). Does NOT work in Plex Media Player (macos,RPi)

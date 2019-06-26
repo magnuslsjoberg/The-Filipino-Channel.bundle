@@ -47,7 +47,7 @@ def DBG(message):
     
     
 ####################################################################################################
-def DataFromUrl( url, headers = {}, params = None, method = 'GET', immediate = True, jsonParams = False, timeout = 10, cacheTime = 0 ):
+def DataFromUrl( url, headers = {}, params = None, method = 'GET', immediate = True, jsonParams = False, timeout = 30, cacheTime = 0 ):
     
     #Log.Debug( "### REQUEST HEADERS =\n%s\n###" % json.dumps( headers, indent = 4, sort_keys = True ) )    
     if params:
